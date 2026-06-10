@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>داستان های فضانوردها</title>
+    <style>
+        :root { --accent:#06b6d4; --accent-2:#00d9ff; --accent-alt:#00ff88; --danger:#ff6b6b; --warning:#ffeb3b }
+        *{ box-sizing:border-box; margin:0; padding:0 }
+        body{ font-family:'Vazirmatn',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:#000; color:#E0E0E0; overflow:hidden; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale }
+        #starfield{ position:fixed; top:0; left:0; width:100%; height:100%; z-index:-1; background:radial-gradient(ellipse at bottom,#1B2735,#090A0F) }
+        .content-wrapper{ position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:1rem; text-align:center }
+        header h1{ font-size:clamp(1.5rem,5vw,2.2rem); font-weight:800; color:#fff; margin:1rem 0; text-shadow:0 0 12px var(--accent-2); letter-spacing:1px }
+        header p{ font-size:clamp(0.9rem,2.5vw,1rem); color:#b0b5c0; line-height:1.6; max-width:90vw; margin-bottom:1.5rem }
+        h2{ font-size:clamp(1.2rem,4vw,1.8rem); margin:1rem 0; color:#E0E0E0 }
+        .character-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:1rem; max-width:95vw; margin:1rem auto }
+        .character-card{ aspect-ratio:1; background:linear-gradient(135deg,rgba(255,255,255,0.08),rgba(0,217,255,0.05)); border:2px solid rgba(0,217,255,0.3); border-radius:0.8rem; padding:1rem; cursor:pointer; transition:all 0.3s ease; display:flex; flex-direction:column; align-items:center; justify-content:center }
+        .character-card img{ width:80%; height:auto; margin-bottom:0.5rem; border-radius:0.5rem }
+        .character-card span{ font-size:clamp(0.85rem,2vw,1rem); font-weight:600; color:var(--accent) }
+        .character-card:hover{ background:linear-gradient(135deg,rgba(0,217,255,0.15),rgba(0,217,255,0.1)); border-color:var(--accent-2); transform:scale(1.05) }
+        .character-card.selected{ background:linear-gradient(135deg,var(--accent),var(--accent-2)); border-color:var(--accent-alt); box-shadow:0 0 20px var(--accent) }
+        #start-game-btn{ padding:0.8rem 2rem; margin-top:1.5rem; background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#000; border:none; border-radius:0.8rem; font-size:clamp(0.9rem,2vw,1.1rem); font-weight:700; cursor:pointer; transition:all 0.3s; width:90vw; max-width:280px; box-shadow:0 0 20px rgba(0,217,255,0.4) }
+        #start-game-btn:hover:not(:disabled){ transform:translateY(-2px); box-shadow:0 0 30px rgba(0,217,255,0.6) }
+        #start-game-btn:disabled{ opacity:0.5; cursor:not-allowed }
+        @media (max-width:500px){ .character-grid{ grid-template-columns:repeat(2,1fr); gap:0.8rem } header p{ font-size:0.9rem } }
+    </style>
+</head>
+<body>
+<canvas id="starfield"></canvas>
+<div class="content-wrapper">
+    <header>
+        <h1>داستان های فضانوردها</h1>
+        <p>۴ فضانورد در سفر دور خانه، دشمنان تاریک را شکست دهند</p>
+    </header>
+    <main style="width:100%">
+        <h2>شخصیت خود را انتخاب کنید</h2>
+        <div class="character-grid">
+            <div class="character-card" data-name="کوروش" title="کوروش">
+                <img src="images/characters/astronaut_red.png" alt="کوروش" loading="lazy" onError="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23ff6b6b%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22 fill=%22%23fff%22%3E👨‍🚀%3C/text%3E%3C/svg%3E'">
+                <span>کوروش</span>
+            </div>
+            <div class="character-card" data-name="داریوش" title="داریوش">
+                <img src="images/characters/astronaut_cyan.png" alt="داریوش" loading="lazy" onError="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%2300d9ff%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22 fill=%22%23000%22%3E👨‍🚀%3C/text%3E%3C/svg%3E'">
+                <span>داریوش</span>
+            </div>
+            <div class="character-card" data-name="سهراب" title="سهراب">
+                <img src="images/characters/astronaut_gold.png" alt="سهراب" loading="lazy" onError="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23ffd700%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22 fill=%22%23000%22%3E👨‍🚀%3C/text%3E%3C/svg%3E'">
+                <span>سهراب</span>
+            </div>
+            <div class="character-card" data-name="رستم" title="رستم">
+                <img src="images/characters/astronaut_green.png" alt="رستم" loading="lazy" onError="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%2300ff88%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22 fill=%22%23000%22%3E👨‍🚀%3C/text%3E%3C/svg%3E'">
+                <span>رستم</span>
+            </div>
+        </div>
+        <button id="start-game-btn" disabled>شروع ماجراجویی</button>
+    </main>
+</div>
+
+<script src="audio-manager.js"></script>
+<script>
+const canvas=document.getElementById('starfield'),ctx=canvas.getContext('2d');
+function resizeCanvas(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;drawStars()}
+function drawStars(){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='rgba(255,255,255,0.8)';for(let i=0;i<100;i++){const x=Math.random()*canvas.width,y=Math.random()*canvas.height,r=Math.random()*1.5;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}}
+resizeCanvas();window.addEventListener('resize',resizeCanvas);
+
+let selected=null;
+document.querySelectorAll('.character-card').forEach(card=>{
+    card.addEventListener('click',()=>{
+        document.querySelectorAll('.character-card').forEach(c=>c.classList.remove('selected'));
+        card.classList.add('selected');
+        selected=card.dataset.name;
+        document.getElementById('start-game-btn').disabled=false;
+        try{sessionStorage.setItem('selectedCharacter',selected);localStorage.setItem('selectedCharacter',selected)}catch(e){}
+    });
+});
+
+document.getElementById('start-game-btn').addEventListener('click',()=>{if(selected){window.location.href='level-select.html'}});
+
+try{const saved=sessionStorage.getItem('selectedCharacter')||localStorage.getItem('selectedCharacter');if(saved){document.querySelector(`[data-name="${saved}"]`)?.click()}}catch(e){}
+</script>
+</body>
+</html>

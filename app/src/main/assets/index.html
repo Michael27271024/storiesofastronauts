@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>داستان های فضانوردها</title>
+    <style>
+        /* Basic Reset and Font setup */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #000000;
+            overflow: hidden; /* Prevent all scrolling */
+            color: #E0E0E0;
+            margin: 0;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Starfield Canvas */
+        #starfield {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: radial-gradient(ellipse at bottom, #1B2735 0%, #090A0F 100%);
+        }
+
+        /* Main Content Wrapper */
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center; /* Center vertically for both orientations */
+            min-height: 100vh;
+            padding: 1rem;
+            animation: fadeIn 2s ease-in-out;
+            text-align: center;
+            box-sizing: border-box; /* Ensures padding is included in height/width */
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Header and Logo */
+        header {
+            margin-bottom: 1rem;
+        }
+        .game-logo {
+            width: 7rem; /* 112px */
+            height: 7rem; /* 112px */
+            object-fit: cover;
+            border-radius: 9999px;
+            animation: float 4s ease-in-out infinite;
+        }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        /* Main Content Area */
+        main {
+            width: 100%;
+            max-width: 56rem; /* 896px */
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Typography */
+        h1 {
+            font-size: 1.875rem; /* 30px */
+            line-height: 2.25rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 0 8px #00d9ff, 0 0 16px #00d9ff;
+        }
+        h2 {
+            font-size: 1.25rem; /* 20px */
+            line-height: 1.75rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 1rem;
+        }
+        p {
+            font-size: 0.875rem; /* 14px */
+            line-height: 1.5;
+            color: #d1d5db;
+            max-width: 42rem;
+            margin-left: auto;
+            margin-right: auto;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Character Selection */
+        .character-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem;
+        }
+        .character-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0.75rem;
+            border-radius: 1rem;
+        }
+        .character-card:hover, .character-card.selected {
+            transform: translateY(-8px) scale(1.03);
+            border-color: #00d9ff;
+            box-shadow: 0 0 15px rgba(0, 217, 255, 0.5);
+        }
+        .character-card img {
+            width: 5rem; /* 80px */
+            height: 5rem; /* 80px */
+            object-fit: contain;
+            margin-bottom: 0.5rem;
+        }
+        .character-card span {
+            font-size: 1rem; /* 16px */
+            font-weight: 600;
+            color: #fff;
+        }
+
+        /* Start Button */
+        #start-game-btn {
+            margin-top: 1.5rem;
+            background-color: #06b6d4;
+            color: #fff;
+            font-weight: 700;
+            padding: 0.75rem 2rem;
+            border-radius: 0.5rem;
+            font-size: 1.125rem; /* 18px */
+            transition: all 0.3s ease;
+            transform: scale(1);
+            border: none;
+            cursor: pointer;
+        }
+        #start-game-btn:hover:not(:disabled) {
+            background-color: #22d3ee;
+            transform: scale(1.05);
+        }
+        #start-game-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* --- Landscape Mode Optimizations --- */
+        @media (orientation: landscape) {
+            .content-wrapper {
+                flex-direction: row;
+                justify-content: space-evenly;
+                align-items: center; /* ستون‌ها را در مرکز عمودی قرار می‌دهد */
+                gap: 1rem;
+                padding: 1rem 2rem;
+            }
+
+            header {
+                flex: 1 1 40%; /* اجازه رشد و کوچک شدن می‌دهد */
+                max-width: 400px; /* از کشیده شدن بیش از حد متن جلوگیری می‌کند */
+                margin-bottom: 0;
+            }
+
+            main {
+                flex: 1 1 55%;
+                max-width: 500px;
+            }
+
+            .game-logo {
+                width: 6rem;
+                height: 6rem;
+            }
+
+            h1 {
+                font-size: 1.5rem; /* کمی کوچکتر */
+            }
+
+            p {
+                font-size: 0.8rem; /* کمی کوچکتر */
+                margin-bottom: 0;
+                line-height: 1.4; /* فاصله خطوط کمتر */
+            }
+
+            .character-grid {
+                 /* ۴ کاراکتر در یک ردیف */
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 0.5rem;
+            }
+            .character-card img {
+                width: 3.5rem; /* تصاویر کوچکتر */
+                height: 3.5rem;
+            }
+             .character-card span {
+                font-size: 0.8rem;
+            }
+
+            #start-game-btn {
+                margin-top: 1rem;
+                padding: 0.5rem 1.5rem;
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+
+<div class="content-wrapper">
+    <header>
+        <img src="file:///android_asset/logo.jpg" alt="لوگوی بازی" class="game-logo">
+        <h1>داستان های فضانوردها</h1>
+        <p>
+            ۴ فضانورد در تاریخ ۲۱ ژوئن ۲۰۲۵ به فضا رفتند و به دلیل خراب شدن قطعه های سفینه، فضانوردان باید با از سر گذاشتن چندین مرحله به زمین برگردنند.
+        </p>
+    </header>
+
+    <main>
+        <h2>شخصیت خود را انتخاب کنید</h2>
+        <div class="character-grid">
+            <div class="character-card" data-name="کوروش">
+                <img src="file:///android_asset/astronaut.png" alt="فضانورد کوروش">
+                <span>کوروش</span>
+            </div>
+            <div class="character-card" data-name="داریوش">
+                <img src="file:///android_asset/astronaut.png" alt="فضانورد داریوش">
+                <span>داریوش</span>
+            </div>
+            <div class="character-card" data-name="سهراب">
+                <img src="file:///android_asset/astronaut.png" alt="فضانورد سهراب">
+                <span>سهراب</span>
+            </div>
+            <div class="character-card" data-name="رستم">
+                <img src="file:///android_asset/astronaut.png" alt="فضانورد رستم">
+                <span>رستم</span>
+            </div>
+        </div>
+
+        <button id="start-game-btn" disabled>
+            شروع ماجراجویی
+        </button>
+    </main>
+
+</div>
+
+<script>
+    // --- Starfield Animation ---
+    const canvas = document.getElementById('starfield');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    const stars = [];
+    const numStars = 200;
+
+    for (let i = 0; i < numStars; i++) {
+        stars.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            radius: Math.random() * 1.2 + 0.3,
+            alpha: Math.random(),
+            speed: Math.random() * 0.15 + 0.05,
+            twinkleSpeed: Math.random() * 0.02,
+            twinkleDirection: 1,
+        });
+    }
+
+    function drawStars() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        stars.forEach(star => {
+            star.y -= star.speed;
+            if (star.y < 0) {
+                star.y = canvas.height;
+                star.x = Math.random() * canvas.width;
+            }
+            star.alpha += star.twinkleSpeed * star.twinkleDirection;
+            if (star.alpha > 1 || star.alpha < 0.2) {
+                star.twinkleDirection *= -1;
+            }
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
+            ctx.fill();
+        });
+        requestAnimationFrame(drawStars);
+    }
+    drawStars();
+
+    // --- Character Selection Logic ---
+    const characterCards = document.querySelectorAll('.character-card');
+    const startButton = document.getElementById('start-game-btn');
+    let selectedCharacter = null;
+    // Clear any previous session selection when index loads so player must pick each app start
+    try { sessionStorage.removeItem('selectedCharacter'); } catch(e) {}
+
+    characterCards.forEach(card => {
+        card.addEventListener('click', () => {
+            characterCards.forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            selectedCharacter = card.dataset.name;
+            startButton.disabled = false;
+        });
+    });
+
+    startButton.addEventListener('click', () => {
+        if(selectedCharacter) {
+            // persist session-only selection for stages
+            try { sessionStorage.setItem('selectedCharacter', selectedCharacter); } catch(e){}
+            // -- FIX: Navigate to the level select screen --
+            window.location.href = 'level-select.html';
+        }
+    });
+</script>
+<!-- audio manager and shared scripts -->
+<script src="audio-manager.js"></script>
+<script>
+    // Initialize audio assets mapping (filenames). If you add files, keep names in sync.
+    try{
+        if(window.AM){
+            window.AM.init({
+                assets: {
+                    music: {
+                        menu_bgm: 'menu_bgm_loop.wav',
+                        level_select_bgm: 'level_select_loop.wav'
+                    },
+                    sfx: {
+                        click: 'sfx_ui_click.wav',
+                        select: 'sfx_ui_select.wav',
+                        hover: 'sfx_button_hover.wav',
+                        locked: 'sfx_ui_locked.wav'
+                    }
+                },
+                autoplay: true,
+                defaultMusic: 'menu_bgm'
+            });
+            const menuPlaylist = ['menu_bgm', 'level_select_bgm'];
+            const startMenuMusic = () => { try{ window.AM.ensurePlayback(menuPlaylist, { rotateMs: 60000, intervalMs: 1200, durationMs: 90000 }); }catch(e){} };
+            // Play rotating menu music on a user gesture or immediately if allowed
+            document.addEventListener('click', function once(){ startMenuMusic(); document.removeEventListener('click', once); }, { once: true });
+            document.addEventListener('touchstart', function once(){ startMenuMusic(); document.removeEventListener('touchstart', once); }, { once: true, passive: true });
+            document.addEventListener('pointerdown', function once(){ startMenuMusic(); document.removeEventListener('pointerdown', once); }, { once: true, passive: true });
+            document.addEventListener('keydown', function once(){ startMenuMusic(); document.removeEventListener('keydown', once); }, { once: true });
+            document.addEventListener('mousemove', function once(){ startMenuMusic(); document.removeEventListener('mousemove', once); }, { once: true, passive: true });
+            setTimeout(startMenuMusic, 800); // fallback attempt if gestures are delayed
+            setTimeout(startMenuMusic, 800); // fallback attempt if gestures are delayed
+            window.addEventListener('load', startMenuMusic, { once: true });
+        }
+    }catch(e){ console.warn(e); }
+
+        // Force a one-time autoplay attempt for aggressive browsers
+        setTimeout(()=>{ try{ window.AM && window.AM.startPlaylist(['menu_bgm','level_select_bgm'],60000); }catch(e){} }, 1500);
+</script>
+<script src="common.js"></script>
+</body>
+</html>

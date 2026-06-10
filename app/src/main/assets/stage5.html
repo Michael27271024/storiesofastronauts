@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>مرحله ۵: سیاره زحل</title>
+    <link rel="stylesheet" href="common.css">
+    <style>
+        @font-face {
+            font-family: 'Vazirmatn';
+            src: url('https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-Regular.woff2') format('woff2');
+            font-weight: normal; font-style: normal;
+        }
+        body, html {
+            margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%;
+            background-color: #000; font-family: 'Vazirmatn', sans-serif; color: white;
+        }
+        .scene-wrapper {
+            width: 100%; height: 100%;
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            transition: background-image 1s ease-in-out;
+        }
+        #loading-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000; z-index: 1000; display: flex;
+            justify-content: center; align-items: center; text-align: center;
+            font-size: 1.5rem;
+        }
+        .dialogue-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #FFD700; /* Saturn-like color */
+            border-radius: 15px;
+            padding: 15px;
+            box-sizing: border-box;
+            text-align: center;
+            animation: slideUp 0.5s ease-out;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .dialogue-text {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        .next-btn {
+            padding: 10px 30px;
+            font-size: 1.1rem;
+            background-color: transparent;
+            border: 2px solid #FFD700;
+            color: #FFD700;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+        }
+        .next-btn:hover {
+            background-color: #FFD700;
+            color: black;
+            box-shadow: 0 0 10px #FFD700;
+        }
+        .scene-image {
+            max-width: 200px;
+            max-height: 150px;
+            margin-bottom: 15px;
+            animation: fadeIn 1s ease-in;
+            border-radius: 8px;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+<div id="loading-screen">در حال بارگذاری مرحله ۵...</div>
+<div id="scene" class="scene-wrapper">
+    <div id="dialogue-box" class="dialogue-container" style="display: none;">
+        <img id="scene-img" class="scene-image" style="display: none;">
+        <p id="dialogue-text" class="dialogue-text"></p>
+        <button id="next-button" class="next-btn">بعدی</button>
+    </div>
+</div>
+
+<script src="audio-manager.js"></script>
+<script src="stage-audio-overlay.js"></script>
+<script>
+    const scene = document.getElementById('scene');
+    const dialogueBox = document.getElementById('dialogue-box');
+    const dialogueText = document.getElementById('dialogue-text');
+    const nextButton = document.getElementById('next-button');
+    const sceneImg = document.getElementById('scene-img');
+    const loadingScreen = document.getElementById('loading-screen');
+
+    // آدرس عکس‌های واقعی که باید در پوشه assets قرار بگیرند
+    const finalAssetPaths = {
+        'saturn_bg': 'file:///android_asset/saturn_background.png', // <-- تغییر در این خط
+        'rocket_on_saturn': 'file:///android_asset/rocket_saturn.png',
+        'beaker_and_flag': 'file:///android_asset/beaker_and_flag.png',
+        'flag_planted': 'file:///android_asset/iran_flag_on_saturn.png',
+        'rocket_interior': 'file:///android_asset/rocket_interior.jpg'
+    };
+
+    // آدرس‌های جایگزین برای تست در صورتی که فایل‌های اصلی موجود نباشند
+    const placeholderAssetPaths = {
+        'saturn_bg': 'https://placehold.co/1920x1080/0d0d1a/FFD700?text=%D8%B3%DB%8C%D8%A7%D8%B1%D9%87+%D8%B²%D8%AD%D9%84',
+        'rocket_on_saturn': 'https://placehold.co/600x400/1a1a2e/ffffff?text=%D9%85%D9%88%D8%B4%DA%A9+%D8%A8%D8%B1+%D8%B3%D8%B7%D8%AD+%D8%B2%D8%AD%D9%84',
+        'beaker_and_flag': 'https://placehold.co/600x400/1a1a2e/ffffff?text=%D8%A8%D8%B4%D8%B1+%D9%88+%D9%BE%D8%B1%DA%86%D9%85',
+        'flag_planted': 'https://placehold.co/600x400/0d0d1a/ffffff?text=%D9%BE%D8%B1%DA%86%D9%85+%D8%A7%DB%8C%D8%B1%D8%A7%D9%86+%D8%AF%D8%B1+%D8%B2%D8%AD%D9%84',
+        'rocket_interior': 'https://placehold.co/1920x1080/333333/ffffff?text=%D8%AF%D8%A7%D8%AE%D9%84+%D9%85%D9%88%D8%B4%DA%A9'
+    };
+
+    const assets = {};
+
+    let storyIndex = 0;
+    const storyScript = [
+        { text: "فضانوردان بزرگ ایرانی توانستند تا به سیاره جدیدی برسند، یعنی زحل.", background: 'saturn_bg' },
+        { text: "آن‌ها اولین تیمی بودند که به زحل می‌رسیدند، به همین دلیل باید درباره‌ی آنجا تحقیق می‌کردند.", image: 'rocket_on_saturn' },
+        { text: "کوروش به موشک برگشت و یک بشر آزمایشگاهی و پرچم ایران بزرگ را با خود آورد.", image: 'beaker_and_flag' },
+        { text: "او مقداری از خاک زحل را برای آزمایش در بشر ریخت." },
+        { text: "سپس، فضانوردان تصمیم گرفتند تا پرچم پرافتخar ایران را در خاک زحل نصب کنند.", image: 'flag_planted' },
+        { text: "بعد از آن، همه به داخل موشک فضایی رفتند تا خاک را آزمایش کنند و اطلاعات را به زمین بفرستند.", background: 'rocket_interior' },
+        { text: "سیاره زحل بسیار امن بود و خبری از آدم فضایی‌ها نبود. خیال فضانوردان راحت بود." },
+        { text: "علت اصلی این سفر، تحقیق علمی و استراحت پس از نبردهای سنگین در مریخ بود." },
+        { text: "تیم فضانوردان ایرانی، خسته اما مصمم، برای ادامه ماجراجویی آماده می‌شدند..." }
+    ];
+
+    function showNextScene() {
+        if (storyIndex >= storyScript.length) {
+            try{ window.unlockStageNext && window.unlockStageNext(5); }catch(e){}
+            try{
+                const key = 'unlockedLevel';
+                const existing = parseInt(localStorage.getItem(key) || '1', 10) || 1;
+                const next = Math.max(existing, 5 + 1);
+                localStorage.setItem(key, String(next));
+            }catch(e){}
+            // go to level select after scene
+            window.location.href = 'level-select.html';
+            return;
+        }
+
+        const currentScene = storyScript[storyIndex];
+
+        if (currentScene.background && assets[currentScene.background]) {
+            scene.style.backgroundImage = `url(${assets[currentScene.background].src})`;
+        }
+
+        if (currentScene.image && assets[currentScene.image]) {
+            sceneImg.src = assets[currentScene.image].src;
+            sceneImg.style.display = 'block';
+        } else {
+            sceneImg.style.display = 'none';
+        }
+
+        dialogueText.textContent = currentScene.text;
+
+        if (storyIndex === storyScript.length - 1) {
+            nextButton.textContent = "پایان مرحله";
+        }
+
+        storyIndex++;
+    }
+
+    function loadAssetsAndStart() {
+        let loadedCount = 0;
+        const totalAssets = Object.keys(finalAssetPaths).length;
+        if (totalAssets === 0) {
+            init();
+            return;
+        }
+        for (const key in finalAssetPaths) {
+            const path = finalAssetPaths[key];
+            assets[key] = new Image();
+            assets[key].onload = () => {
+                loadedCount++;
+                if (loadedCount === totalAssets) {
+                    init();
+                }
+            };
+            assets[key].onerror = () => {
+                console.log(`خطا در بارگذاری ${path}. استفاده از جایگزین.`);
+                assets[key].src = placeholderAssetPaths[key];
+            };
+            assets[key].src = path;
+        }
+    }
+
+    function init() {
+        loadingScreen.style.display = 'none';
+        dialogueBox.style.display = 'block';
+        if(assets.saturn_bg) {
+           scene.style.backgroundImage = `url(${assets.saturn_bg.src})`;
+        }
+        showNextScene();
+    }
+
+    nextButton.addEventListener('click', showNextScene);
+    window.onload = loadAssetsAndStart;
+</script>
+
+  <!-- injected video player -->
+  <video id="video-player" playsinline></video>
+
+  <!-- injected: integrate video-playback-fix.js -->
+  <script type="module">
+    import { attachVideoHandlers } from './video-playback-fix.js';
+        (function(){
+            const vp = attachVideoHandlers({ videoSelector: '#video-player', overlaySelector: null, redirectTo: 'level-select.html' });
+            window.stageVideoHelper = vp;
+            // expose a simple global helper used to play stage videos from existing code
+            window.playStageVideo = function(src){ vp.playSrc(src); };
+            // also expose freeVideo
+            window.freeStageVideo = function(){ vp.freeVideo && vp.freeVideo(); };
+            window.unlockStageNext = function(current){ vp.unlockNext && vp.unlockNext(current); };
+            window.getUnlockedLevel = function(){ return vp.getUnlocked ? vp.getUnlocked() : 1; };
+        })();
+  </script>
+  <!-- end injected -->
+    <script src="common.js"></script>
+    <script>
+        window.onMenuContinue = function(){ try{ if(typeof gamePaused !== 'undefined') gamePaused = false; }catch(e){} };
+        window.onMenuRestart = function(){ window.location.reload(); };
+        window.onMenuBack = function(){ try{ window.unlockStageNext && window.unlockStageNext(5); }catch(e){} window.location.href = 'level-select.html'; };
+    </script>
+  </body>
+</html>

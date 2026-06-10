@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>مرحله: داستان های فضانورد ها</title>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="../styles/professional-theme.css">
+    <style>
+        /* Stage-specific overrides */
+        .stage-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(135deg, #050810 0%, #0a0e1a 100%);
+            overflow: hidden;
+        }
+
+        .stage-canvas {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #000a18;
+        }
+
+        .stage-ui {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .ui-panel {
+            position: absolute;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .ui-top-left {
+            top: 12px;
+            right: 12px;
+        }
+
+        .ui-bottom-right {
+            bottom: 12px;
+            right: 12px;
+        }
+
+        .ui-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+            font-family: 'Vazirmatn', sans-serif;
+        }
+
+        .ui-label {
+            color: #00d9ff;
+            font-weight: 600;
+            min-width: 60px;
+        }
+
+        .ui-value {
+            color: #ffffff;
+        }
+
+        /* Controls */
+        .controls-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 12px;
+            pointer-events: auto;
+            z-index: 50;
+            gap: 12px;
+        }
+
+        .control-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .control-btn {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            border: 2px solid rgba(0, 217, 255, 0.5);
+            background: rgba(0, 217, 255, 0.1);
+            color: #00d9ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 100ms ease-out;
+            touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
+            padding: 0;
+            box-shadow: 0 0 10px rgba(0, 217, 255, 0.2);
+        }
+
+        .control-btn:active {
+            background: rgba(0, 217, 255, 0.3);
+            transform: scale(0.95);
+            box-shadow: 0 0 15px rgba(0, 217, 255, 0.4);
+        }
+
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Dialog overlay */
+        .dialog-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(5, 8, 16, 0.8);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .dialog-backdrop.active {
+            display: flex;
+            animation: fadeIn 200ms ease-out;
+        }
+
+        .dialog-box {
+            background: linear-gradient(135deg, rgba(10, 14, 26, 0.95) 0%, rgba(18, 21, 45, 0.95) 100%);
+            border: 2px solid #00d9ff;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 85%;
+            max-height: 85%;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(0, 217, 255, 0.3);
+            animation: slideUp 300ms ease-out;
+        }
+
+        .dialog-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: #ffffff;
+        }
+
+        .dialog-content {
+            font-size: 16px;
+            color: #b0b5c0;
+            margin-bottom: 24px;
+            line-height: 1.8;
+        }
+
+        .dialog-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .control-btn {
+                width: 48px;
+                height: 48px;
+                font-size: 20px;
+            }
+
+            .controls-panel {
+                padding: 8px;
+                gap: 8px;
+            }
+
+            .dialog-box {
+                padding: 24px;
+                max-width: 90%;
+            }
+
+            .dialog-title {
+                font-size: 20px;
+            }
+
+            .dialog-content {
+                font-size: 14px;
+            }
+
+            .ui-panel {
+                font-size: 12px;
+            }
+        }
+
+        /* Landscape orientation */
+        @media (orientation: landscape) and (max-height: 500px) {
+            .controls-panel {
+                bottom: auto;
+                top: 12px;
+                flex-direction: column;
+                left: 12px;
+                right: auto;
+            }
+
+            .ui-top-left {
+                top: 12px;
+                right: auto;
+                left: 12px;
+            }
+
+            .ui-bottom-right {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="stage-container">
+    <canvas id="gameCanvas" class="stage-canvas"></canvas>
+    
+    <div class="stage-ui">
+        <!-- Top UI Panel -->
+        <div class="ui-panel ui-top-left">
+            <div id="ui-stage" class="ui-row">
+                <span class="ui-label">مرحله:</span>
+                <span class="ui-value">1</span>
+            </div>
+            <div id="ui-health" class="ui-row">
+                <span class="ui-label">سلامتی:</span>
+                <span class="ui-value">❤️❤️❤️</span>
+            </div>
+            <div id="ui-ammo" class="ui-row" style="display: none;">
+                <span class="ui-label">مهمات:</span>
+                <span class="ui-value">0</span>
+            </div>
+            <div id="ui-objective" class="ui-row" style="display: none;">
+                <span class="ui-label">هدف:</span>
+                <span class="ui-value">-</span>
+            </div>
+        </div>
+
+        <!-- Bottom Right UI Panel -->
+        <div class="ui-panel ui-bottom-right" id="ui-stats" style="display: none;">
+            <div class="ui-row">
+                <span class="ui-label">نمرات:</span>
+                <span class="ui-value" id="ui-score">0</span>
+            </div>
+            <div class="ui-row">
+                <span class="ui-label">دشمنان:</span>
+                <span class="ui-value" id="ui-enemies">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dialog Backdrop & Box -->
+    <div id="dialogBackdrop" class="dialog-backdrop">
+        <div class="dialog-box">
+            <div class="dialog-title" id="dialogTitle">عنوان</div>
+            <div class="dialog-content" id="dialogContent">محتوا</div>
+            <div class="dialog-buttons" id="dialogButtons">
+                <button class="btn btn-primary" id="dialogBtn1">باشه</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls Panel -->
+    <div class="controls-panel" id="controlsPanel">
+        <div class="control-group">
+            <button class="control-btn" id="btnLeft" title="راست" aria-label="حرکت به راست">◄</button>
+            <button class="control-btn" id="btnRight" title="چپ" aria-label="حرکت به چپ">►</button>
+            <button class="control-btn" id="btnJump" title="پرش" aria-label="پرش" style="width: 60px; height: 60px;">△</button>
+        </div>
+        <div class="control-group">
+            <button class="control-btn" id="btnShoot" title="شلیک" aria-label="شلیک">●</button>
+            <button class="control-btn" id="btnPause" title="توقف" aria-label="منوی بازی">⚙</button>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script src="../scripts/drawing-system.js"></script>
+<script src="../scripts/game-engine.js"></script>
+<script src="../audio-manager.js"></script>
+<script>
+    /**
+     * Stage Template - Base game stage structure
+     * This template is used for all 10 stages
+     */
+
+    'use strict';
+
+    // ==================== CONFIGURATION ====================
+    const STAGE_CONFIG = {
+        stageNumber: 1,
+        stageName: 'ماموریت ماه',
+        storyText: 'داستان مرحله 1',
+        worldWidth: 2000,
+        worldHeight: 600,
+        player: {
+            x: 50,
+            y: 0,
+            health: 3,
+            maxHealth: 3,
+            name: 'کوروش'
+        },
+        enemies: [],
+        platforms: [],
+        items: [],
+        theme: {
+            backgroundColor: '#0a0e1a',
+            accentColor: '#00d9ff'
+        }
+    };
+
+    // ==================== GLOBAL STATE ====================
+    let gameEngine = null;
+    let drawingSystem = null;
+    let gameRunning = false;
+    let gamePaused = false;
+    let dialogOpen = false;
+
+    // DOM elements
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const dialogBackdrop = document.getElementById('dialogBackdrop');
+    const dialogTitle = document.getElementById('dialogTitle');
+    const dialogContent = document.getElementById('dialogContent');
+    const dialogButtons = document.getElementById('dialogButtons');
+    const uiHealth = document.getElementById('ui-health');
+    const uiAmmo = document.getElementById('ui-ammo');
+    const uiObjective = document.getElementById('ui-objective');
+    const uiScore = document.getElementById('ui-score');
+    const uiEnemies = document.getElementById('ui-enemies');
+
+    // ==================== INITIALIZATION ====================
+    function initializeGame() {
+        // Set canvas size
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Create drawing system
+        drawingSystem = DrawingSystem.create({
+            width: canvas.width,
+            height: canvas.height,
+            ctx: ctx
+        });
+
+        // Create game engine
+        gameEngine = GameEngine.create(canvas, {
+            worldWidth: STAGE_CONFIG.worldWidth,
+            worldHeight: STAGE_CONFIG.worldHeight,
+            gravity: 0.4
+        });
+
+        gameEngine.setDrawer(drawingSystem);
+
+        // Setup game callbacks
+        gameEngine.onUpdate = updateGameUI;
+        gameEngine.onGameOver = handleGameOver;
+        gameEngine.onWin = handleGameWin;
+
+        // Add player
+        const playerName = getPlayerCharacter();
+        gameEngine.addPlayer({
+            ...STAGE_CONFIG.player,
+            name: playerName,
+            jumpPower: -12,
+            speed: 4
+        });
+
+        // Setup game world
+        setupGameWorld();
+
+        // Setup controls
+        setupControls();
+
+        // Show intro dialog
+        showDialog(
+            'مرحله ' + STAGE_CONFIG.stageNumber,
+            STAGE_CONFIG.storyText,
+            ['شروع'],
+            () => {
+                startGame();
+            }
+        );
+    }
+
+    /**
+     * Setup game world - platforms, enemies, items
+     * Override this in stage-specific code
+     */
+    function setupGameWorld() {
+        // Ground platform
+        gameEngine.addPlatform(0, canvas.height - 50, STAGE_CONFIG.worldWidth, 50);
+
+        // Example platform
+        gameEngine.addPlatform(400, canvas.height - 150, 300, 30);
+
+        // Add enemies - basic setup
+        if (STAGE_CONFIG.enemies.length > 0) {
+            STAGE_CONFIG.enemies.forEach(enemy => {
+                gameEngine.addEnemy(enemy);
+            });
+        } else {
+            // Add default enemy if none specified
+            gameEngine.addEnemy({
+                x: 600,
+                y: 0,
+                name: 'داریوش',
+                health: 3,
+                aiType: 'chase',
+                speed: 2
+            });
+        }
+
+        // Add items if specified
+        if (STAGE_CONFIG.items.length > 0) {
+            STAGE_CONFIG.items.forEach(item => {
+                gameEngine.addItem(item.x, item.y, item.type, item);
+            });
+        }
+    }
+
+    /**
+     * Start the game
+     */
+    function startGame() {
+        closeDialog();
+        gameEngine.start();
+        gameRunning = true;
+    }
+
+    /**
+     * Show dialog overlay
+     */
+    function showDialog(title, content, buttons, onComplete) {
+        dialogTitle.textContent = title;
+        dialogContent.textContent = content;
+        dialogButtons.innerHTML = '';
+
+        buttons.forEach((buttonText, index) => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-primary';
+            btn.textContent = buttonText;
+            btn.onclick = () => {
+                closeDialog();
+                if (onComplete) onComplete();
+            };
+            dialogButtons.appendChild(btn);
+        });
+
+        dialogBackdrop.classList.add('active');
+        dialogOpen = true;
+        gameEngine.pause();
+    }
+
+    /**
+     * Close dialog
+     */
+    function closeDialog() {
+        dialogBackdrop.classList.remove('active');
+        dialogOpen = false;
+        if (gameRunning) {
+            gameEngine.resume();
+        }
+    }
+
+    /**
+     * Handle game over
+     */
+    function handleGameOver() {
+        showDialog(
+            '❌ باختی!',
+            'دوباره تلاش کن',
+            ['تلاش دوباره', 'بازگشت به منو'],
+            (choice) => {
+                if (choice === 0) {
+                    location.reload();
+                } else {
+                    goToLevelSelect();
+                }
+            }
+        );
+    }
+
+    /**
+     * Handle game win
+     */
+    function handleGameWin() {
+        showDialog(
+            '🎉 برنده شدی!',
+            'مرحله را با موفقیت تمام کردی',
+            ['مرحله بعدی', 'بازگشت به منو'],
+            (choice) => {
+                if (choice === 0) {
+                    goToNextStage();
+                } else {
+                    goToLevelSelect();
+                }
+            }
+        );
+    }
+
+    /**
+     * Update game UI
+     */
+    function updateGameUI(state) {
+        if (!gameEngine.player) return;
+
+        // Update health
+        const healthEmoji = '❤️'.repeat(gameEngine.player.health);
+        uiHealth.querySelector('.ui-value').textContent = 
+            healthEmoji + '🖤'.repeat(gameEngine.player.maxHealth - gameEngine.player.health);
+
+        // Update ammo if shown
+        if (gameEngine.player.hasWeapon) {
+            uiAmmo.style.display = 'flex';
+            uiAmmo.querySelector('.ui-value').textContent = gameEngine.player.ammo;
+        }
+
+        // Update enemy count
+        uiEnemies.textContent = gameEngine.enemies.length;
+
+        // Update score based on killed enemies
+        uiScore.textContent = STAGE_CONFIG.stageNumber * 1000 - (gameEngine.enemies.length * 100);
+    }
+
+    /**
+     * Setup controls
+     */
+    function setupControls() {
+        const btnLeft = document.getElementById('btnLeft');
+        const btnRight = document.getElementById('btnRight');
+        const btnJump = document.getElementById('btnJump');
+        const btnShoot = document.getElementById('btnShoot');
+        const btnPause = document.getElementById('btnPause');
+
+        // Touch/mouse events for buttons
+        setupButtonControl(btnLeft, () => {
+            gameEngine.input.left = true;
+            gameEngine.input.right = false;
+        }, () => {
+            gameEngine.input.left = false;
+        });
+
+        setupButtonControl(btnRight, () => {
+            gameEngine.input.right = true;
+            gameEngine.input.left = false;
+        }, () => {
+            gameEngine.input.right = false;
+        });
+
+        setupButtonControl(btnJump, () => {
+            gameEngine.input.jump = true;
+        }, () => {
+            gameEngine.input.jump = false;
+        });
+
+        setupButtonControl(btnShoot, () => {
+            gameEngine.firePlayerBullet();
+        });
+
+        btnPause.addEventListener('click', togglePause);
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') gameEngine.input.left = true;
+            if (e.key === 'ArrowRight') gameEngine.input.right = true;
+            if (e.key === ' ' || e.key === 'ArrowUp') gameEngine.input.jump = true;
+            if (e.key === 'Enter') gameEngine.firePlayerBullet();
+            if (e.key === 'Escape') togglePause();
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft') gameEngine.input.left = false;
+            if (e.key === 'ArrowRight') gameEngine.input.right = false;
+            if (e.key === ' ' || e.key === 'ArrowUp') gameEngine.input.jump = false;
+        });
+    }
+
+    /**
+     * Setup button control with touch/mouse events
+     */
+    function setupButtonControl(button, onDown, onUp) {
+        button.addEventListener('pointerdown', onDown);
+        button.addEventListener('pointerup', onUp || (() => {}));
+        button.addEventListener('pointerleave', onUp || (() => {}));
+    }
+
+    /**
+     * Toggle pause
+     */
+    function togglePause() {
+        if (gameEngine.gameState !== 'PLAYING') return;
+        
+        if (gamePaused) {
+            gameEngine.resume();
+            gamePaused = false;
+        } else {
+            gameEngine.pause();
+            gamePaused = true;
+            showPauseMenu();
+        }
+    }
+
+    /**
+     * Show pause menu
+     */
+    function showPauseMenu() {
+        showDialog(
+            '⏸ توقف',
+            'بازی متوقف شده است',
+            ['ادامه', 'بازگشت'],
+            (choice) => {
+                if (choice === 0) {
+                    gamePaused = false;
+                    gameEngine.resume();
+                } else {
+                    goToLevelSelect();
+                }
+            }
+        );
+    }
+
+    /**
+     * Resize canvas to window
+     */
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        if (drawingSystem) {
+            drawingSystem.resize(canvas.width, canvas.height);
+        }
+    }
+
+    /**
+     * Get player character name from storage
+     */
+    function getPlayerCharacter() {
+        try {
+            return sessionStorage.getItem('selectedCharacter') || 
+                   localStorage.getItem('selectedCharacter') || 
+                   'کوروش';
+        } catch (e) {
+            return 'کوروش';
+        }
+    }
+
+    /**
+     * Navigation
+     */
+    function goToNextStage() {
+        const nextStage = STAGE_CONFIG.stageNumber + 1;
+        if (nextStage <= 10) {
+            window.location.href = `stage${nextStage}.html`;
+        } else {
+            goToLevelSelect();
+        }
+    }
+
+    function goToLevelSelect() {
+        window.location.href = '../level-select.html';
+    }
+
+    // ==================== START ====================
+    window.addEventListener('DOMContentLoaded', initializeGame);
+</script>
+</body>
+</html>

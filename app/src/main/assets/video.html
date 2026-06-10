@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ویدیو لوگو</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #000;
+      overflow: hidden; /* Prevent scrollbars */
+    }
+    #splash {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover; /* This makes the video cover the entire screen */
+    }
+  </style>
+</head>
+<body>
+<!-- It's a good practice to use the source tag inside the video element -->
+<video id="splash" playsinline muted>
+  <source src="logo.mp4" type="video/mp4">
+  مرورگر شما از تگ ویدیو پشتیبانی نمی‌کند.
+</video>
+
+<script>
+  (function(){
+    const v = document.getElementById('splash');
+    let redirected = false; // A flag to prevent multiple redirects
+
+    // Function to redirect to the main page
+    function goIndex() {
+      if (redirected) return; // If already redirected, do nothing
+      redirected = true;
+
+      // A small fade-out effect before redirecting
+      document.body.style.transition = 'opacity 0.5s ease-out';
+      document.body.style.opacity = '0';
+      setTimeout(() => {
+        // --- BUG FIX: Corrected the navigation path ---
+        // The path was 'assets/index.html', which is likely incorrect if both files are in the same folder.
+        window.location.href = 'index.html';
+      }, 500);
+    }
+
+    // --- Setting up multiple ways to trigger the redirect for reliability ---
+
+    // 1. The standard 'ended' event
+    v.addEventListener('ended', goIndex);
+
+    // 2. An 'error' event in case the video fails to load
+    v.addEventListener('error', goIndex);
+
+    // 3. A fallback for mobile browsers where 'ended' might not fire reliably.
+    // This checks if the video is very close to finishing.
+    v.addEventListener('timeupdate', function() {
+      if (!v.duration) return; // Wait until video duration is known
+      // If we are within the last 0.25 seconds, redirect.
+      if (v.duration - v.currentTime < 0.25) {
+        goIndex();
+      }
+    });
+
+    // 4. A touch event as a manual fallback. If the video ends and gets stuck,
+    // the user can simply tap the screen to proceed.
+    document.body.addEventListener('touchstart', function() {
+        // If the video has finished playing, a tap will trigger the redirect
+        if (v.ended || (v.duration && v.duration - v.currentTime < 0.5)) {
+            goIndex();
+        }
+    });
+
+    // 5. The final, absolute fallback timer. If nothing else works,
+    // redirect after 9 seconds.
+    setTimeout(goIndex, 9000);
+
+
+    // --- Attempt to play the video ---
+    const playPromise = v.play();
+
+    if (playPromise !== undefined) {
+      playPromise.catch(error => {
+        // Autoplay was prevented by the browser. This is common on mobile.
+        console.error("Autoplay failed, redirecting immediately:", error);
+        goIndex(); // Redirect immediately
+      });
+    }
+  })();
+</script>
+</body>
+</html>

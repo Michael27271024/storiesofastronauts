@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>مرحله ۴: حمله به پایگاه ستاره‌زادگان</title>
+    <link rel="stylesheet" href="common.css">
+    <style>
+        @font-face {
+            font-family: 'Vazirmatn';
+            src: url('https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-Regular.woff2') format('woff2');
+            font-weight: normal; font-style: normal;
+        }
+        body, html {
+            margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%;
+            background-color: #000; font-family: 'Vazirmatn', sans-serif;
+        }
+        .game-wrapper { position: relative; width: 100%; height: 100%; display: none; }
+        canvas { display: block; width: 100%; height: 100%; background-color: #0c0a18; }
+
+        /* Intro Animation Styles */
+        #intro-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000; z-index: 2000;
+            display: flex; justify-content: center; align-items: center; overflow: hidden;
+        }
+        #intro-stars {
+            position: absolute; width: 100%; height: 100%;
+            background-image: radial-gradient(white 1px, transparent 1px);
+            background-size: 50px 50px;
+            opacity: 0.5;
+            animation: move-stars 50s linear infinite;
+        }
+        @keyframes move-stars { from { background-position: 0 0; } to { background-position: 1000px 500px; } }
+        #intro-planet {
+            width: 300px; height: 300px;
+            background: url('file:///android_asset/mars_background.png') no-repeat center center;
+            background-size: contain;
+            border-radius: 50%;
+            animation: zoom-planet 7s forwards ease-in;
+        }
+        @keyframes zoom-planet {
+            0% { transform: scale(0.1); opacity: 0; }
+            20% { transform: scale(0.2); opacity: 1; }
+            100% { transform: scale(25); opacity: 0; }
+        }
+
+        #video-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000; z-index: 4000; display: none;
+            justify-content: center; align-items: center;
+        }
+        #video-player {
+             width: 100%; height: 100%; object-fit: cover;
+        }
+
+        /* UI Styles */
+        .ui-container {
+            position: absolute; top: 15px; left: 15px; color: white;
+            font-size: 16px; text-shadow: 2px 2px 4px black; z-index: 50;
+            background-color: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px;
+            border: 1px solid #ff5722;
+        }
+        .message-box {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background-color: rgba(0,0,0,0.85); padding: 25px; border-radius: 15px;
+            border: 2px solid #ff5722; text-align: center; color: white; z-index: 200;
+            display: none; max-width: 90%; box-shadow: 0 0 20px rgba(255, 87, 34, 0.5);
+        }
+        .message-btn {
+            padding: 10px 30px; font-size: 1.1rem; background-color: #ff5722;
+            border: none; color: white; border-radius: 8px; margin-top: 20px;
+            cursor: pointer; transition: background-color 0.2s;
+        }
+        .message-btn:hover { background-color: #e64a19; }
+
+        #loading-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000; z-index: 3000; display: flex;
+            justify-content: center; align-items: center; color: white; font-size: 1.5rem;
+            text-align: center;
+        }
+
+        /* Controls */
+        .controls-container {
+            position: absolute; bottom: 10px; left: 10px; right: 10px; display: flex;
+            justify-content: space-between; user-select: none; -webkit-user-select: none;
+            pointer-events: none;
+        }
+        .control-group { display: flex; align-items: center; gap: 10px; pointer-events: auto; direction: ltr; }
+        .control-btn {
+            width: 55px; height: 55px; background-color: rgba(255, 87, 34, 0.2);
+            border: 2px solid #ff5722; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; font-size: 22px; color: white;
+            transition: background-color 0.1s, transform 0.1s;
+        }
+        .control-btn:active { background-color: rgba(255, 87, 34, 0.5); transform: scale(0.95); }
+    </style>
+</head>
+<body>
+
+<div id="loading-screen">در حال بارگذاری مرحله ۴...</div>
+<div id="intro-container">
+    <div id="intro-stars"></div>
+    <div id="intro-planet"></div>
+</div>
+<div id="video-overlay">
+    <video id="video-player" playsinline></video>
+</div>
+
+<div class="game-wrapper" id="game-wrapper">
+    <div class="ui-container">
+        <div id="health-ui">سلامتی کوروش: ❤️❤️❤️❤️❤️</div>
+        <div id="battery-ui">باتری: ۰ / ۵</div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="message-box" class="message-box">
+        <p id="message-text"></p>
+        <button id="message-ok-btn" class="message-btn">باشه</button>
+    </div>
+</div>
+
+<div class="controls-container" id="controls" style="display: none;">
+    <div class="control-group actions">
+        <button class="control-btn" id="shoot-btn">&#x25CE;</button>
+        <button class="control-btn" id="jump-btn">&#x25B2;</button>
+    </div>
+    <div class="control-group movement">
+        <button class="control-btn" id="left-btn">&#x25C0;</button>
+        <button class="control-btn" id="right-btn">&#x25B6;</button>
+    </div>
+</div>
+
+<script src="audio-manager.js"></script>
+<script src="stage-audio-overlay.js"></script>
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const gameWrapper = document.getElementById('game-wrapper');
+    const loadingScreen = document.getElementById('loading-screen');
+    const introContainer = document.getElementById('intro-container');
+    const controls = document.getElementById('controls');
+    const videoOverlay = document.getElementById('video-overlay');
+    const videoPlayer = document.getElementById('video-player');
+
+    let gamePaused = true;
+    let gameState = 'LOADING';
+    let cameraX = 0;
+
+    // Game Objects
+    const player = { name: (function(){ try{ return sessionStorage.getItem('selectedCharacter') || localStorage.getItem('selectedCharacter') || 'کوروش'; }catch(e){ return 'کوروش'; } })(), x: 200, y: 0, width: 50, height: 70, speed: 4, velocityX: 0, velocityY: 0, isJumping: false, health: 5, maxHealth: 5, shootTimer: 0, lastDirection: 'right', invincibleTimer: 0 };
+    const teammates = [
+        { name: "رستم", x: 100, y: 0, health: 5, maxHealth: 5, quotes: ["برای ایران!", "ما پیروزیم!", "ادامه بده!"], currentQuote: "برای ایران!", quoteTimer: 0, speed: 0.5, direction: 1, patrolCenter: 100, patrolRange: 50 },
+        { name: "داریوش", x: 1400, y: 0, health: 5, maxHealth: 5, quotes: ["نابودشون کن!", "شجاع باش!", "پشتت هستیم!"], currentQuote: "نابودشون کن!", quoteTimer: 0, speed: 0.5, direction: 1, patrolCenter: 1400, patrolRange: 100 },
+        { name: "سهراب", x: 2800, y: 0, health: 5, maxHealth: 5, quotes: ["دقت کن!", "تسلیم نشو!", "مراقب باش!"], currentQuote: "دقت کن!", quoteTimer: 0, speed: 0.5, direction: 1, patrolCenter: 2800, patrolRange: 80 }
+    ];
+    let enemies = [];
+    let bullets = [];
+    let batteries = [];
+    let collectedBatteries = 0;
+    let stars = [];
+    let enemyBullets = [];
+
+    const keys = { right: false, left: false, jump: false, shoot: false };
+    const gravity = 0.5;
+
+    const assets = {};
+    const assetPaths = {
+        'player_idle': 'player_idle_gun.png',
+        'player_walk': 'player_walk_gun.png',
+        'player_jump': 'player_jump_gun.png',
+        'zombie': 'zombie.png',
+        'battery': 'battery.png',
+        'alien_base': 'alien_base_under_attack.jpg',
+        'win_video': 'mars_to_saturn.mp4'
+    };
+
+    // World Properties
+    let worldWidth = 3500;
+    let worldHeight = 800;
+    const platforms = [];
+    const enemySpawnPoints = [];
+
+    function showMessage(text, onConfirm) {
+        gamePaused = true;
+        document.getElementById('message-text').innerText = text;
+        const msgBox = document.getElementById('message-box');
+        msgBox.style.display = 'block';
+        const okBtn = document.getElementById('message-ok-btn');
+        const confirmHandler = () => {
+            msgBox.style.display = 'none';
+            if(onConfirm) onConfirm();
+        };
+        okBtn.addEventListener('click', confirmHandler, { once: true });
+    }
+
+    function generateStars() {
+        for(let i = 0; i < 200; i++) {
+            stars.push({
+                x: Math.random() * worldWidth,
+                y: Math.random() * worldHeight,
+                size: Math.random() * 2 + 1,
+                parallax: Math.random() * 0.4 + 0.1
+            });
+        }
+    }
+
+    function setupWorld() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        worldHeight = canvas.height;
+
+        platforms.length = 0;
+        enemySpawnPoints.length = 0;
+        batteries.length = 0;
+
+        // Main ground platform
+        platforms.push({ x: 0, y: worldHeight - 60, width: worldWidth, height: 60 });
+
+        // Additional floating platforms
+        const platformData = [
+            {x: 450, y: worldHeight - 180, width: 200},
+            {x: 800, y: worldHeight - 250, width: 250},
+            {x: 1300, y: worldHeight - 200, width: 300},
+            {x: 1800, y: worldHeight - 280, width: 250},
+            {x: 2300, y: worldHeight - 180, width: 200},
+            {x: 2800, y: worldHeight - 220, width: 300}
+        ];
+        platformData.forEach(p => platforms.push({ ...p, height: 30 }));
+
+        // Define enemy spawn points on the ground
+        const spawnData = [300, 900, 1600, 2200, 3000];
+        spawnData.forEach(x => enemySpawnPoints.push({ x: x, y: worldHeight - 60 }));
+
+        // Define battery locations on platforms
+        const batteryLocations = [
+            {x: 500, y: worldHeight - 230}, {x: 900, y: worldHeight - 300},
+            {x: 1500, y: worldHeight - 250}, {x: 2000, y: worldHeight - 330},
+            {x: 2900, y: worldHeight - 270}
+        ];
+        batteryLocations.forEach(loc => batteries.push({ ...loc, width: 30, height: 30, isCollected: false }));
+
+        generateStars();
+
+        [player, ...teammates].forEach(character => {
+             character.y = worldHeight - 60 - 70; // Place on main ground
+        });
+    }
+
+    function startGame() {
+    showMessage(`ما به پایگاه ارتش ستاره‌زادگان رسیدیم! باید انرژی موشک رو تامین کنیم. ${player.name}، تو باید ۵ تا باتری رو که توی پایگاه پخش شده پیدا کنی. ما هواتو داریم و با دشمن‌ها می‌جنگیم!`, () => {
+            gameState = 'PLAYING';
+            gamePaused = false;
+            requestAnimationFrame(gameLoop);
+        });
+    }
+
+    function spawnEnemy() {
+        if (gamePaused || gameState !== 'PLAYING' || enemies.length >= 8) return;
+        const spawnPoint = enemySpawnPoints[Math.floor(Math.random() * enemySpawnPoints.length)];
+        const dialogueOptions = ["ایست!", "متجاوز!", "نابود شو!", "برای ستاره‌زادگان!"];
+        enemies.push({
+            x: spawnPoint.x, y: spawnPoint.y - 70, // Adjust Y to be on top of the ground
+            width: 50, height: 70,
+            health: 3, maxHealth: 3, speed: Math.random() * 1 + 0.5,
+            direction: Math.random() < 0.5 ? 1 : -1,
+            dialogue: dialogueOptions[Math.floor(Math.random() * dialogueOptions.length)],
+            dialogueTimer: Math.random() * 100 + 100
+        });
+    }
+    setInterval(spawnEnemy, 3000);
+
+    function gameLoop() {
+        if (!gamePaused) {
+            update();
+        }
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function update() {
+        if (gameState !== 'PLAYING') return;
+
+        // Player invincible timer
+        if (player.invincibleTimer > 0) player.invincibleTimer--;
+
+        player.velocityX = 0;
+        if (keys.left) { player.velocityX = -player.speed; player.lastDirection = 'left'; }
+        if (keys.right) { player.velocityX = player.speed; player.lastDirection = 'right'; }
+        if (keys.jump && !player.isJumping) { player.velocityY = -13; player.isJumping = true; }
+
+        player.x += player.velocityX;
+        player.y += player.velocityY;
+        player.velocityY += gravity;
+
+        let onGround = false;
+        platforms.forEach(p => {
+            if (player.velocityY >= 0 && player.x + player.width > p.x && player.x < p.x + p.width && player.y + player.height >= p.y && player.y + player.height <= p.y + p.height + 1) {
+                player.y = p.y - player.height;
+                player.velocityY = 0;
+                player.isJumping = false;
+                onGround = true;
+            }
+        });
+        if (!onGround && player.y > canvas.height) gameOver("سقوط کردی!");
+
+        if (player.x < 0) player.x = 0;
+        if (player.x + player.width > worldWidth) player.x = worldWidth - player.width;
+
+        if (player.shootTimer > 0) player.shootTimer--;
+        if (keys.shoot && player.shootTimer === 0) {
+            bullets.push({
+                x: player.x + (player.lastDirection === 'right' ? player.width : -10),
+                y: player.y + 35, width: 10, height: 5, direction: player.lastDirection, isPlayer: true
+            });
+            player.shootTimer = 20;
+        }
+
+        teammates.forEach(tm => {
+            // Patrol movement
+            tm.x += tm.speed * tm.direction;
+            if (tm.x < tm.patrolCenter - tm.patrolRange || tm.x > tm.patrolCenter + tm.patrolRange) {
+                tm.direction *= -1;
+            }
+
+            let target = null;
+            let minDistance = 350;
+            enemies.forEach(e => {
+                const distance = Math.abs(e.x - tm.x);
+                if (distance < minDistance) {
+                    target = e; minDistance = distance;
+                }
+            });
+            if (target && Math.random() < 0.02) {
+                bullets.push({
+                    x: tm.x + 25, y: tm.y + 35, width: 10, height: 5,
+                    direction: (target.x > tm.x ? 'right' : 'left'), isPlayer: false
+                });
+            }
+            tm.quoteTimer--;
+            if (tm.quoteTimer <= 0) {
+                tm.currentQuote = tm.quotes[Math.floor(Math.random() * tm.quotes.length)];
+                tm.quoteTimer = 200 + Math.random() * 100;
+            }
+        });
+
+        enemies.forEach((e) => {
+            e.x += e.speed * e.direction;
+            if (e.x < 0 || e.x + e.width > worldWidth || Math.random() < 0.01) e.direction *= -1;
+
+            // enemy shooting toward player/teammates
+            e.shootCooldown = e.shootCooldown || Math.floor(Math.random()*180)+80;
+            e.shootCooldown--;
+            if (e.shootCooldown <= 0) {
+                // pick target: prefer player, otherwise a random teammate
+                let target = player;
+                const aliveTms = teammates.filter(t=>!t.dead);
+                if (aliveTms.length > 0 && Math.random() < 0.6) target = aliveTms[Math.floor(Math.random()*aliveTms.length)];
+                const dx = (target.x + (target.width||35)/2) - (e.x + e.width/2);
+                const dy = (target.y + (target.height||35)/2) - (e.y + e.height/2);
+                const ang = Math.atan2(dy, dx);
+                enemyBullets.push({ x: e.x + e.width/2, y: e.y + e.height/2, vx: Math.cos(ang)*5, vy: Math.sin(ang)*5, width:6, height:4, damage: 0.25 });
+                e.shootCooldown = Math.floor(Math.random()*240)+120;
+            }
+
+            if (player.invincibleTimer === 0 && player.x < e.x + e.width && player.x + player.width > e.x && player.y < e.y + e.height && player.y + player.height > e.y) {
+                 player.health--;
+                 player.invincibleTimer = 60; // 1 second of invincibility
+                 if (player.health <= 0) gameOver("توسط دشمنان شکست خوردی!");
+            }
+            e.dialogueTimer--;
+            if (e.dialogueTimer <= 0) {
+                 const dialogueOptions = ["ایست!", "متجاوز!", "نابود شو!", "برای ستاره‌زادگان!"];
+                 e.dialogue = dialogueOptions[Math.floor(Math.random() * dialogueOptions.length)];
+                 e.dialogueTimer = Math.random() * 100 + 100;
+            }
+        });
+
+        // update enemy bullets
+        enemyBullets.forEach((b, bi) => {
+            b.x += b.vx; b.y += b.vy;
+            if (b.x < cameraX - 50 || b.x > cameraX + canvas.width + 50) { enemyBullets.splice(bi,1); return; }
+            // hit player
+            if (player.x < b.x + b.width && player.x + player.width > b.x && player.y < b.y + b.height && player.y + player.height > b.y) {
+                player.health -= b.damage || 0.25;
+                enemyBullets.splice(bi,1);
+                if (player.health <= 0) gameOver('توسط دشمنان شکست خوردی!');
+            }
+            // hit teammate
+            teammates.forEach(tm=>{
+                if (tm.dead) return;
+                if (tm.x < b.x + b.width && tm.x + 35 > b.x && tm.y < b.y + b.height && tm.y + 35 > b.y) {
+                    tm.health -= b.damage || 0.25;
+                    enemyBullets.splice(bi,1);
+                }
+            });
+        });
+
+        const bulletsToRemove = [];
+        const enemiesToRemove = [];
+
+        bullets.forEach((b, bIndex) => {
+            b.x += b.direction === 'right' ? 10 : -10;
+            if (b.x < cameraX - 20 || b.x > cameraX + canvas.width + 20) {
+                bulletsToRemove.push(bIndex);
+                return;
+            }
+            enemies.forEach((e, eIndex) => {
+                if (b.x < e.x + e.width && b.x + b.width > e.x && b.y < e.y + e.height && b.y + b.height > e.y) {
+                    bulletsToRemove.push(bIndex);
+                    e.health--;
+                    if (e.health <= 0) {
+                        enemiesToRemove.push(eIndex);
+                    }
+                }
+            });
+        });
+
+        // Remove objects in reverse order to avoid index issues
+        bulletsToRemove.reverse().forEach(i => bullets.splice(i, 1));
+        enemiesToRemove.reverse().forEach(i => enemies.splice(i, 1));
+
+
+        batteries.forEach(bat => {
+            if (!bat.isCollected && player.x < bat.x + bat.width && player.x + player.width > bat.x && player.y < bat.y + bat.height && player.y + player.height > bat.y) {
+                bat.isCollected = true;
+                collectedBatteries++;
+                if (collectedBatteries >= 5) winGame();
+            }
+        });
+
+    document.getElementById('health-ui').innerText = `سلامتی ${player.name}: ${'❤️'.repeat(player.health)}${'🖤'.repeat(player.maxHealth - player.health)}`;
+        document.getElementById('battery-ui').innerText = `باتری: ${collectedBatteries} / 5`;
+
+        cameraX = player.x - canvas.width / 3;
+        if (cameraX < 0) cameraX = 0;
+        if (cameraX > worldWidth - canvas.width) cameraX = worldWidth - canvas.width;
+    }
+
+    function drawBackground() {
+        // Use the alien base image as dominant background if available
+        if (assets.alien_base && assets.alien_base.complete) {
+            try {
+                // draw a stretched/darkened version across the world to match the scene
+                ctx.save();
+                ctx.globalAlpha = 0.95;
+                const bgX = cameraX - 200;
+                const bgW = Math.max(canvas.width + 400, 1200);
+                const bgH = Math.max(canvas.height, (bgW / assets.alien_base.width) * assets.alien_base.height);
+                ctx.drawImage(assets.alien_base, bgX, canvas.height - bgH - 40, bgW, bgH);
+                ctx.restore();
+            } catch (e) { console.warn(e); }
+        } else {
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            skyGradient.addColorStop(0, '#000010');
+            skyGradient.addColorStop(0.7, '#0c0a18');
+            skyGradient.addColorStop(1, '#2c1a38');
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(cameraX, 0, canvas.width, canvas.height);
+        }
+
+        stars.forEach(star => {
+            const x = star.x - cameraX * star.parallax;
+            const y = star.y;
+            ctx.fillStyle = `rgba(255, 255, 255, 0.8)`;
+            ctx.beginPath();
+            ctx.arc(x, y, star.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    }
+
+    function draw() {
+        ctx.save();
+        ctx.translate(-cameraX, 0);
+
+        drawBackground();
+
+        platforms.forEach(p => {
+             ctx.fillStyle = '#DC7C5A';
+             ctx.fillRect(p.x, p.y, p.width, p.height);
+             ctx.fillStyle = '#B06549';
+             ctx.fillRect(p.x, p.y, p.width, 5);
+        });
+
+        if (assets.alien_base && assets.alien_base.complete) {
+            const baseWidth = 1000; // کوچکتر کردن اندازه پایگاه
+            const baseHeight = (baseWidth / assets.alien_base.width) * assets.alien_base.height;
+            const baseX = (worldWidth / 2) - (baseWidth / 2);
+            const baseY = worldHeight - 60 - baseHeight + 10;
+            ctx.drawImage(assets.alien_base, baseX, baseY, baseWidth, baseHeight);
+        }
+
+        // Flash player if invincible
+        if (player.invincibleTimer > 0 && Math.floor(player.invincibleTimer / 5) % 2 === 0) {
+            ctx.globalAlpha = 0.5;
+        }
+
+        let playerImg = assets.player_idle;
+        if (player.isJumping) playerImg = assets.player_jump;
+        else if (keys.left || keys.right) playerImg = assets.player_walk;
+
+        if (playerImg && playerImg.complete) {
+            ctx.save();
+            if (player.lastDirection === 'left') {
+                ctx.scale(-1, 1);
+                ctx.drawImage(playerImg, -player.x - player.width, player.y, player.width, player.height);
+            } else {
+                ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+            }
+            ctx.restore();
+        } else {
+             ctx.fillStyle = 'blue';
+             ctx.fillRect(player.x, player.y, player.width, player.height);
+        }
+        ctx.globalAlpha = 1.0;
+
+
+        teammates.forEach(tm => {
+            if (assets.player_idle && assets.player_idle.complete) ctx.drawImage(assets.player_idle, tm.x, tm.y, 70, 70);
+            else { ctx.fillStyle = 'green'; ctx.fillRect(tm.x, tm.y, 70, 70); }
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'; ctx.strokeStyle = 'black'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.roundRect(tm.x - 20, tm.y - 80, 110, 70, [8]);
+            ctx.fill(); ctx.stroke();
+
+            ctx.fillStyle = 'black'; ctx.font = '14px Vazirmatn'; ctx.textAlign = 'center';
+            ctx.fillText(tm.name, tm.x + 35, tm.y - 60);
+            ctx.fillText('❤️'.repeat(tm.health), tm.x + 35, tm.y - 40);
+            ctx.font = '12px Vazirmatn'; ctx.fillText(tm.currentQuote, tm.x + 35, tm.y - 20);
+        });
+
+        enemies.forEach(e => {
+            if (assets.zombie && assets.zombie.complete) {
+                 ctx.drawImage(assets.zombie, e.x, e.y, e.width, e.height);
+            } else {
+                 ctx.fillStyle = 'red'; ctx.fillRect(e.x, e.y, e.width, e.height);
+            }
+
+            // Health Bar
+            ctx.fillStyle = '#555'; ctx.fillRect(e.x, e.y - 20, e.width, 5);
+            ctx.fillStyle = '#ff3838'; ctx.fillRect(e.x, e.y - 20, e.width * (e.health / e.maxHealth), 5);
+
+            // Dialogue Box
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; ctx.beginPath();
+            ctx.roundRect(e.x - 10, e.y - 50, e.width + 20, 25, [8]); ctx.fill();
+            ctx.fillStyle = 'white'; ctx.font = '12px Vazirmatn'; ctx.textAlign = 'center';
+            ctx.fillText(e.dialogue, e.x + e.width/2, e.y - 33);
+        });
+
+        bullets.forEach(b => {
+            ctx.fillStyle = b.isPlayer ? '#33c6ff' : '#ffeb3b';
+            ctx.fillRect(b.x, b.y, b.width, b.height);
+        });
+
+        // Draw batteries on top of everything else
+        batteries.forEach(bat => {
+            if (!bat.isCollected) {
+                if (assets.battery && assets.battery.complete) ctx.drawImage(assets.battery, bat.x, bat.y, bat.width, bat.height);
+                else { ctx.fillStyle = 'yellow'; ctx.fillRect(bat.x, bat.y, bat.width, bat.height); }
+            }
+        });
+
+        ctx.restore();
+    }
+
+    function winGame() {
+        if (gameState === 'WIN') return;
+        gameState = 'WIN';
+        gamePaused = true;
+        showMessage("موفق شدیم! تمام باتری‌ها جمع‌آوری شد. با انرژی کامل، حالا به سمت سیاره زحل حرکت می‌کنیم تا ماموریت را ادامه دهیم!", () => {
+             gameWrapper.style.display = 'none';
+             controls.style.display = 'none';
+             videoOverlay.style.display = 'flex';
+             if (window.playStageVideo) {
+                 try { window.playStageVideo(assets.win_video.src); } catch(e) { console.warn(e); videoPlayer.src = assets.win_video.src; videoPlayer.play(); }
+             } else {
+                 videoPlayer.src = assets.win_video.src;
+                 videoPlayer.play();
+             }
+        });
+    }
+
+    function gameOver(message) {
+        if (gameState === 'GAMEOVER') return;
+        gameState = 'GAMEOVER';
+        showMessage(message + " ماموریت شکست خورد.", () => {
+            window.location.href = 'index.html';
+        });
+    }
+
+    function loadAssets(callback) {
+        let loadedCount = 0;
+        const totalAssets = Object.keys(assetPaths).length;
+        if (totalAssets === 0) { callback(); return; }
+
+        for (const key in assetPaths) {
+            const path = `file:///android_asset/${assetPaths[key]}`;
+            if(assetPaths[key].endsWith('.mp4')) {
+                assets[key] = { src: path, complete: true };
+                loadedCount++;
+                if(loadedCount === totalAssets) callback();
+            } else {
+                const img = new Image();
+                img.src = path;
+                assets[key] = img;
+                img.onload = () => {
+                    loadedCount++;
+                    if (loadedCount === totalAssets) callback();
+                };
+                img.onerror = () => {
+                    console.log(`خطا در بارگذاری فایل: ${path}`);
+                    loadedCount++;
+                    if (loadedCount === totalAssets) callback();
+                }
+            }
+        }
+    }
+
+    // Controls Setup
+    const addTouchListeners = (btn, key) => {
+        btn.addEventListener('touchstart', e => { e.preventDefault(); keys[key] = true; }, { passive: false });
+        btn.addEventListener('touchend', e => { e.preventDefault(); keys[key] = false; }, { passive: false });
+    };
+    addTouchListeners(document.getElementById('left-btn'), 'left');
+    addTouchListeners(document.getElementById('right-btn'), 'right');
+    addTouchListeners(document.getElementById('jump-btn'), 'jump');
+    addTouchListeners(document.getElementById('shoot-btn'), 'shoot');
+
+    videoPlayer.addEventListener('ended', () => {
+        try{ window.unlockStageNext && window.unlockStageNext(4); }catch(e){}
+        try{
+            const key = 'unlockedLevel';
+            const existing = parseInt(localStorage.getItem(key) || '1', 10) || 1;
+            const next = Math.max(existing, 4 + 1);
+            localStorage.setItem(key, String(next));
+        }catch(e){}
+        window.location.href = 'level-select.html';
+    });
+
+    window.onload = () => {
+        loadAssets(() => {
+            loadingScreen.style.display = 'none';
+            // Start intro animation
+            setTimeout(() => {
+                introContainer.style.display = 'none';
+                gameWrapper.style.display = 'block';
+                controls.style.display = 'flex';
+                setupWorld();
+                startGame();
+            }, 6800); // A bit less than animation duration
+        });
+    };
+</script>
+
+
+  <!-- injected: integrate video-playback-fix.js -->
+  <script type="module">
+    import { attachVideoHandlers } from './video-playback-fix.js';
+        (function(){
+            const vp = attachVideoHandlers({ videoSelector: '#video-player', overlaySelector: null, redirectTo: 'level-select.html' });
+            window.stageVideoHelper = vp;
+            // expose a simple global helper used to play stage videos from existing code
+            window.playStageVideo = function(src){ vp.playSrc(src); };
+            // also expose freeVideo
+            window.freeStageVideo = function(){ vp.freeVideo && vp.freeVideo(); };
+            window.unlockStageNext = function(current){ vp.unlockNext && vp.unlockNext(current); };
+            window.getUnlockedLevel = function(){ return vp.getUnlocked ? vp.getUnlocked() : 1; };
+        })();
+  </script>
+  <!-- end injected -->
+    <script src="common.js"></script>
+    <script>
+        window.onMenuContinue = function(){ try{ gamePaused = false; }catch(e){} };
+        window.onMenuRestart = function(){ window.location.reload(); };
+        window.onMenuBack = function(){ try{ window.unlockStageNext && window.unlockStageNext(4); }catch(e){} window.location.href = 'level-select.html'; };
+    </script>
+  </body>
+</html>
