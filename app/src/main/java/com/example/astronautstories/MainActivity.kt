@@ -1,13 +1,18 @@
-package com.example.astronautstories // نام پکیج خودت رو جایگزین کن
+package com.example.astronautstories
 
 import android.annotation.SuppressLint
+import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
+import android.view.View
+import android.webkit.WebSettings
 import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebChromeClient
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -15,55 +20,38 @@ class MainActivity : AppCompatActivity() {
 
         val webView: WebView = findViewById(R.id.webView)
 
-        // فعال کردن جاوا اسکریپت برای اجرای انیمیشن‌ها و منطق بازی
-        webView.settings.javaScriptEnabled = true
+        // شفاف‌سازی پس‌زمینه وب‌ویو و فعال‌سازی شتاب‌دهنده سخت‌افزاری برای جلوگیری از فریم خاکستری
+        webView.setBackgroundColor(Color.TRANSPARENT)
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
-        // اجازه دسترسی به فایل‌های محلی و منابع محتوایی
-        webView.settings.allowFileAccess = true
-        webView.settings.allowContentAccess = true
+        webView.settings.apply {
+            javaScriptEnabled = true
+            allowFileAccess = true
+            allowContentAccess = true
+            domStorageEnabled = true
+            databaseEnabled = true
+            
+            // تنظیمات پخش خودکار ویدیو بدون نیاز به تعامل کاربر
+            mediaPlaybackRequiresUserGesture = false
 
-        // فعال کردن DOM storage و database برای localStorage و sessionStorage
-        webView.settings.domStorageEnabled = true
-        webView.settings.databaseEnabled = true
+            // مقادیر استاندارد دسترسی فایل‌های محلی
+            @Suppress("DEPRECATION")
+            allowFileAccessFromFileURLs = true
+            @Suppress("DEPRECATION")
+            allowUniversalAccessFromFileURLs = true
 
-        // اجازه دسترسی یونیورسال از فایل:// به منابع دیگر (نیاز به API 16+)
-        try {
-            webView.settings.javaClass.getMethod("setAllowFileAccessFromFileURLs", java.lang.Boolean::class.java)
-            webView.settings.javaClass.getMethod("setAllowUniversalAccessFromFileURLs", java.lang.Boolean::class.java)
-            // اگر متدها وجود داشته باشند، با بازتاب صدا بزن
-            webView.settings.javaClass.getMethod("setAllowFileAccessFromFileURLs", java.lang.Boolean::class.java)
-            webView.settings.allowFileAccessFromFileURLs = true
-            webView.settings.allowUniversalAccessFromFileURLs = true
-        } catch (ignored: Exception) {
-            // برخی ورژن‌ها این متدها را ندارند؛ نادیده می‌گیریم
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            }
+
+            loadWithOverviewMode = true
+            useWideViewPort = true
         }
 
-        // برای محتوای ترکیبی (http داخل file://) اجازه بده (API 21+)
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-            }
-        } catch (ignored: Exception) {}
+        webView.webViewClient = WebViewClient()
+        webView.webChromeClient = WebChromeClient()
 
-        // بهبود پشتیبانی: WebViewClient و WebChromeClient برای بارگذاری صحیح منابع
-        webView.webViewClient = android.webkit.WebViewClient()
-        webView.webChromeClient = android.webkit.WebChromeClient()
-
-        // برخی دستگاه‌ها با سخت‌افزار گرافیکی مشکل دارند. اگر خطای GPUAUX ادامه داشت،
-        // می‌توان WebView را به صورت نرم‌افزاری رسم کرد (خط بعدی را از کامنت خارج کنید).
-        // webView.setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
-
-        // این دو خط برای تنظیم اندازه صفحه وب به اندازه گوشی اضافه شده است
-        webView.settings.loadWithOverviewMode = true
-        webView.settings.useWideViewPort = true
-
-        // ابتدا فایل ویدیو را بارگذاری کن
+        // بارگذاری فایل ویدیو (مدیریت رفتن به index.html کاملاً توسط خود JS انجام می‌شود)
         webView.loadUrl("file:///android_asset/video.html")
-
-        // یک Handler برای ایجاد تاخیر ایجاد کن
-        Handler(Looper.getMainLooper()).postDelayed({
-            // بعد از 8 ثانیه، فایل index.html را بارگذاری کن
-            webView.loadUrl("file:///android_asset/index.html")
-        }, 8000) // 8000 میلی‌ثانیه معادل 8 ثانیه است
     }
 }

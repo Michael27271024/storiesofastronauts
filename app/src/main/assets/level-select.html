@@ -125,6 +125,7 @@
     </main>
 </div>
 
+<script src="scripts/common.js"></script>
 <script>
     try {
         document.addEventListener('DOMContentLoaded', function() {
@@ -144,13 +145,19 @@
                 levelCard.innerHTML = `<span class="level-number">${i}</span>`;
 
                 if (i <= unlocked) {
-                    levelCard.href = `stage${i}.html`;
+                    levelCard.href = `stages/stage${i}.html`;
+                    levelCard.addEventListener('click', () => {
+                        if (window.GameAudio) {
+                            window.GameAudio.playSfx('select', 0.7);
+                            window.GameAudio.playPageTheme(`stage${i}`, 0.42);
+                        }
+                    });
                 } else {
                     levelCard.href = '#';
                     levelCard.classList.add('locked');
                     levelCard.addEventListener('click', (e) => {
                         e.preventDefault();
-                        // simple inline message for locked level
+                        if (window.GameAudio) window.GameAudio.playSfx('locked', 0.8);
                         alert('این مرحله هنوز باز نشده است. ابتدا مراحل قبلی را کامل کنید.');
                     });
                 }
@@ -158,11 +165,17 @@
                 levelGrid.appendChild(levelCard);
             }
 
+            if (window.GameAudio) window.GameAudio.playPageTheme('level_select', 0.42);
+
             // Reset progress button
             const resetBtn = document.getElementById('reset-progress');
             if(resetBtn){
                 resetBtn.addEventListener('click', () => {
                     if(confirm('آیا مطمئنید که می‌خواهید پیشرفت را بازنشانی کنید؟')){
+                        if (window.GameAudio) {
+                            window.GameAudio.playSfx('click', 0.7);
+                            window.GameAudio.playPageTheme('level_select', 0.42);
+                        }
                         localStorage.setItem('unlockedLevel', '1');
                         location.reload();
                     }
@@ -177,45 +190,6 @@
         }
     }
 </script>
-<!-- audio manager and shared scripts -->
-<script src="audio-manager.js"></script>
-<script>
-    try{
-        if(window.AM){
-            window.AM.init({
-                assets: {
-                    music: {
-                        level_select_bgm: 'level_select_loop.wav',
-                        menu_bgm: 'menu_bgm_loop.wav',
-                        ambient_space: 'ambient_space_loop.wav'
-                    },
-                    sfx: {
-                        click: 'sfx_ui_click.wav',
-                        select: 'sfx_ui_select.wav',
-                        hover: 'sfx_button_hover.wav',
-                        locked: 'sfx_ui_locked.wav'
-                    }
-                },
-                autoplay: true,
-                defaultMusic: 'level_select_bgm'
-            });
-            const selectPlaylist = ['level_select_bgm', 'menu_bgm', 'ambient_space'];
-            const startSelectMusic = () => { try{ window.AM.ensurePlayback(selectPlaylist, { rotateMs: 60000, intervalMs: 1200, durationMs: 90000 }); }catch(e){} };
-            document.addEventListener('click', function once(){ startSelectMusic(); document.removeEventListener('click', once); }, { once: true });
-            document.addEventListener('touchstart', function once(){ startSelectMusic(); document.removeEventListener('touchstart', once); }, { once: true, passive: true });
-            document.addEventListener('pointerdown', function once(){ startSelectMusic(); document.removeEventListener('pointerdown', once); }, { once: true, passive: true });
-            document.addEventListener('keydown', function once(){ startSelectMusic(); document.removeEventListener('keydown', once); }, { once: true });
-            document.addEventListener('mousemove', function once(){ startSelectMusic(); document.removeEventListener('mousemove', once); }, { once: true, passive: true });
-            setTimeout(startSelectMusic, 800);
-            window.addEventListener('load', startSelectMusic, { once: true });
-            setTimeout(startSelectMusic, 800);
-            window.addEventListener('load', startSelectMusic, { once: true });
-        }
-    }catch(e){ console.warn(e); }
-
-        setTimeout(()=>{ try{ window.AM && window.AM.startPlaylist(['level_select_bgm','menu_bgm','ambient_space'],60000); }catch(e){} }, 1500);
-</script>
-<script src="common.js"></script>
 </body>
 </html>
 

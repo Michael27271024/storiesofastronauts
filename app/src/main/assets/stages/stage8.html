@@ -1,0 +1,259 @@
+﻿<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>مرحله ۸: کشف بزرگ</title>
+    <link rel="stylesheet" href="../styles/common.css">
+    <style>
+        @font-face {
+            font-family: 'Vazirmatn';
+            src: url('https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-Regular.woff2') format('woff2');
+            font-weight: normal; font-style: normal;
+        }
+        body, html {
+            margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%;
+            background-color: #000; font-family: 'Vazirmatn', sans-serif; color: white;
+        }
+        .scene-wrapper {
+            width: 100%; height: 100%;
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            transition: background-image 1s ease-in-out;
+        }
+        #loading-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000; z-index: 1000; display: flex;
+            justify-content: center; align-items: center; text-align: center;
+            font-size: 1.5rem;
+        }
+        #video-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000; z-index: 4000; display: none;
+            justify-content: center; align-items: center;
+        }
+        #video-player {
+             width: 100%; height: 100%; object-fit: cover;
+        }
+        .dialogue-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #4A90E2; /* A nice blue color */
+            border-radius: 15px;
+            padding: 15px;
+            box-sizing: border-box;
+            text-align: center;
+            animation: slideUp 0.5s ease-out;
+            box-shadow: 0 0 15px rgba(74, 144, 226, 0.4);
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .dialogue-text {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        .next-btn {
+            padding: 10px 30px;
+            font-size: 1.1rem;
+            background-color: transparent;
+            border: 2px solid #4A90E2;
+            color: #4A90E2;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+        }
+        .next-btn:hover {
+            background-color: #4A90E2;
+            color: white;
+            box-shadow: 0 0 10px #4A90E2;
+        }
+        .scene-image {
+            max-width: 200px;
+            max-height: 150px;
+            margin-bottom: 15px;
+            animation: fadeIn 1s ease-in;
+            border-radius: 8px;
+            border: 1px solid #4A90E2;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+<div id="loading-screen">در حال بارگذاری مرحله ۸...</div>
+<div id="video-overlay">
+    <video poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" id="video-player" playsinline></video>
+</div>
+<div id="scene" class="scene-wrapper">
+    <div id="dialogue-box" class="dialogue-container" >
+        <img id="scene-img" class="scene-image" >
+        <p id="dialogue-text" class="dialogue-text"></p>
+        <button id="next-button" class="next-btn">بعدی</button>
+    </div>
+</div>
+
+<script>
+    const scene = document.getElementById('scene');
+    const dialogueBox = document.getElementById('dialogue-box');
+    const dialogueText = document.getElementById('dialogue-text');
+    const nextButton = document.getElementById('next-button');
+    const sceneImg = document.getElementById('scene-img');
+    const loadingScreen = document.getElementById('loading-screen');
+    const videoOverlay = document.getElementById('video-overlay');
+    const videoPlayer = document.getElementById('video-player');
+
+    const assets = {};
+    // آدرس فایل‌های مورد نیاز برای این مرحله
+    const assetPaths = {
+        'rocket_interior': '../images/backgrounds/rocket_interior.jpg',
+        'powerful_battery': '../images/items/powerful_battery.png',
+        'astronauts_happy': '../images/astronauts_happy.png',
+        'astronauts_arguing': '../images/astronauts_arguing.png',
+        'jupiter_background': '../images/backgrounds/jupiter_background.png',
+        'win_video': '../videos/jupiter_to_mercury.mp4'
+    };
+
+
+    let storyIndex = 0;
+    // سناریوی مرحله ۸ بر اساس توضیحات شما
+    const storyScript = [
+        { text: "بعد از اینکه وسایل گمشده را با خود به موشک آوردند، تصمیم گرفتند تا آن‌ها را بررسی کنند.", background: 'rocket_interior' },
+        { text: "در میان وسایل، یک باتری بسیار بزرگ پیدا کردند. پس از تحقیق فهمیدند این باتری فوق‌العاده قوی است و می‌تواند به طور دائم به موشک انرژی بدهد.", image: 'powerful_battery' },
+        { text: "آن‌ها بسیار خوشحال شدند، چون یکی از بزرگترین مشکلاتشان برای بازگشت به زمین حل شده بود.", image: 'astronauts_happy' },
+        { text: "اما زمان به سرعت می‌گذشت... کارها سخت‌تر و اختلاف نظرها بیشتر می‌شد. همه منتظر روزی بودند که به زمین برگردند.", image: 'astronauts_arguing' },
+        { text: "بیشتر زمان در این مرحله صرف تحقیق و بررسی وسایل پیدا شده شد تا از عملکرد صحیح آن‌ها مطمئن شوند." },
+        { text: "سرانجام، پس از آماده‌سازی نهایی، فضانوردان برای مأموریت بعدی آماده شدند: سفر به سیاره عطارد.", background: 'jupiter_background' },
+        { text: "آنها با انرژی جدید و امید بیشتر، مشتری را به مقصد سیاره‌ی بعدی ترک کردند..." }
+    ];
+
+    function showNextScene() {
+        if (storyIndex >= storyScript.length) {
+            playFinalVideo();
+            return;
+        }
+
+        const currentScene = storyScript[storyIndex];
+
+        if (currentScene.background && assets[currentScene.background]) {
+            scene.style.backgroundImage = `url(${assets[currentScene.background].src})`;
+        }
+
+        if (currentScene.image && assets[currentScene.image]) {
+            sceneImg.src = assets[currentScene.image].src;
+            sceneImg.style.display = 'block';
+        } else {
+            sceneImg.style.display = 'none';
+        }
+
+        dialogueText.textContent = currentScene.text;
+
+        if (storyIndex === storyScript.length - 1) {
+            nextButton.textContent = "ادامه...";
+        }
+
+        storyIndex++;
+    }
+
+    function playFinalVideo() {
+        dialogueBox.style.display = 'none';
+        videoOverlay.style.display = 'flex';
+        if (window.playStageVideo) {
+            try { window.playStageVideo(assets.win_video.src); } catch(e) { console.warn(e); videoPlayer.src = assets.win_video.src; videoPlayer.play(); }
+        } else {
+            videoPlayer.src = assets.win_video.src;
+            videoPlayer.play();
+        }
+    }
+
+    function loadAssetsAndStart() {
+        let loadedCount = 0;
+        const totalAssets = Object.keys(assetPaths).length;
+        if (totalAssets === 0) {
+            init();
+            return;
+        }
+        for (const key in assetPaths) {
+             const path = assetPaths[key];
+             if (path.endsWith('.mp4')) {
+                assets[key] = { src: path }; // فقط آدرس ویدیو را ذخیره کن
+                loadedCount++;
+             } else {
+                const img = new Image();
+                assets[key] = img;
+                img.onload = () => {
+                    loadedCount++;
+                    if (loadedCount === totalAssets) init();
+                };
+                img.onerror = () => {
+                    console.log(`خطا در بارگذاری ${path}.`);
+                    // در صورت نبودن فایل، یک عکس جایگزین نمایش داده می‌شود
+                    img.src = `https://placehold.co/600x400/1a1a2e/ffffff?text=${key.replace('_',' ')}`;
+                };
+                img.src = path;
+             }
+             if (loadedCount === totalAssets) init();
+        }
+    }
+
+    function init() {
+        loadingScreen.style.display = 'none';
+        dialogueBox.style.display = 'block';
+        showNextScene();
+    }
+
+    nextButton.addEventListener('click', showNextScene);
+    videoPlayer.addEventListener('ended', () => {
+        if (window.shouldAutoExitOnVideoEnd !== true) return;
+        try{ window.unlockStageNext && window.unlockStageNext(8); }catch(e){}
+        try{
+            const key = 'unlockedLevel';
+            const existing = parseInt(localStorage.getItem(key) || '1', 10) || 1;
+            const next = Math.max(existing, 8 + 1);
+            localStorage.setItem(key, String(next));
+        }catch(e){}
+        // بعد از پایان ویدیو به صفحه انتخاب مرحله می‌رود
+        window.location.href = '../level-select.html';
+    });
+
+    window.onload = loadAssetsAndStart;
+</script>
+
+  <!-- injected: integrate video-playback-fix.js -->
+    <script src="../scripts/video-playback-fix.js"></script>
+    <script>
+        (function(){
+            // pass currentLevel so the helper can reliably mark the next level unlocked before redirect
+            const vp = window.attachVideoHandlers({ videoSelector: '#video-player', overlaySelector: null, redirectTo: '../level-select.html', currentLevel: 8 });
+            window.stageVideoHelper = vp;
+            // expose a simple global helper used to play stage videos from existing code
+            window.playStageVideo = function(src){ vp.playSrc(src); };
+            // also expose freeVideo
+            window.freeStageVideo = function(){ vp.freeVideo && vp.freeVideo(); };
+            window.unlockStageNext = function(current){ vp.unlockNext && vp.unlockNext(current); };
+            window.getUnlockedLevel = function(){ return vp.getUnlocked ? vp.getUnlocked() : 1; };
+        })();
+  </script>
+  <!-- end injected -->
+    <script src="../scripts/common.js"></script>
+    <script>
+        window.onMenuContinue = function(){ try{ if(typeof gamePaused !== 'undefined') gamePaused = false; }catch(e){} };
+        window.onMenuRestart = function(){ window.location.reload(); };
+        window.onMenuBack = function(){ try{ window.unlockStageNext && window.unlockStageNext(8); }catch(e){} window.location.href = '../level-select.html'; };
+    </script>
+  <div id="video-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:4000;display:none;justify-content:center;align-items:center;"><video id="video-player" playsinline style="width:100%;height:100%;object-fit:cover;"></video></div>`n</body>
+</html>
+
+
+
+

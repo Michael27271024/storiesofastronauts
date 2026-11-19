@@ -8,88 +8,142 @@
     html, body {
       height: 100%;
       margin: 0;
-      background: #000;
-      overflow: hidden; /* Prevent scrollbars */
+      background: #000000 !important;
+      overflow: hidden;
+      font-family: 'Vazirmatn', sans-serif;
     }
     #splash {
       position: fixed;
-      top: 0;
-      left: 0;
+      inset: 0;
       width: 100%;
       height: 100%;
-      object-fit: cover; /* This makes the video cover the entire screen */
+      object-fit: cover;
+      z-index: 10;
+      background: #000000 !important;
+      background-image: none !important;
+      /* مخفی بودن ویدیو تا لحظه پخش قطعی اولین فریم */
+      opacity: 0;
+      transition: opacity 0.15s ease-in-out;
+    }
+
+    /* غیرفعال کردن و مخفی‌سازی کامل دکمه‌ها و منوهای اضافه روی ویدیو */
+    #common-menu-open,
+    #common-menu-overlay,
+    #game-audio-toggle,
+    #page-shell-badge,
+    .common-menu-open-btn,
+    .common-menu-overlay,
+    .game-audio-toggle,
+    .page-pill {
+      display: none !important;
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+
+    /* مخفی کردن دکمه پخش پیش‌فرض مرورگر */
+    video::-webkit-media-controls,
+    video::-webkit-media-controls-start-playback-button,
+    video::-webkit-media-controls-overlay-play-button,
+    video::-webkit-media-controls-play-button,
+    video::-webkit-media-controls-enclosure {
+      display: none !important;
+      -webkit-appearance: none !important;
+      opacity: 0 !important;
     }
   </style>
 </head>
 <body>
-<!-- It's a good practice to use the source tag inside the video element -->
-<video id="splash" playsinline muted>
-  <source src="logo.mp4" type="video/mp4">
+<video id="splash" 
+       autoplay 
+       muted 
+       playsinline 
+       webkit-playsinline 
+       preload="auto" 
+       poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+  <source src="videos/logo.mp4" type="video/mp4">
   مرورگر شما از تگ ویدیو پشتیبانی نمی‌کند.
 </video>
+
+<script src="scripts/common.js"></script>
 
 <script>
   (function(){
     const v = document.getElementById('splash');
-    let redirected = false; // A flag to prevent multiple redirects
+    let redirected = false;
+    let fallbackTimer = null;
 
-    // Function to redirect to the main page
-    function goIndex() {
-      if (redirected) return; // If already redirected, do nothing
-      redirected = true;
-
-      // A small fade-out effect before redirecting
-      document.body.style.transition = 'opacity 0.5s ease-out';
-      document.body.style.opacity = '0';
-      setTimeout(() => {
-        // --- BUG FIX: Corrected the navigation path ---
-        // The path was 'assets/index.html', which is likely incorrect if both files are in the same folder.
-        window.location.href = 'index.html';
-      }, 500);
-    }
-
-    // --- Setting up multiple ways to trigger the redirect for reliability ---
-
-    // 1. The standard 'ended' event
-    v.addEventListener('ended', goIndex);
-
-    // 2. An 'error' event in case the video fails to load
-    v.addEventListener('error', goIndex);
-
-    // 3. A fallback for mobile browsers where 'ended' might not fire reliably.
-    // This checks if the video is very close to finishing.
-    v.addEventListener('timeupdate', function() {
-      if (!v.duration) return; // Wait until video duration is known
-      // If we are within the last 0.25 seconds, redirect.
-      if (v.duration - v.currentTime < 0.25) {
-        goIndex();
-      }
+    // نمایش ویدیو فقط هنگام شروع قطعی پخش
+    v.addEventListener('playing', () => {
+      v.style.opacity = '1';
     });
 
-    // 4. A touch event as a manual fallback. If the video ends and gets stuck,
-    // the user can simply tap the screen to proceed.
-    document.body.addEventListener('touchstart', function() {
-        // If the video has finished playing, a tap will trigger the redirect
-        if (v.ended || (v.duration && v.duration - v.currentTime < 0.5)) {
-            goIndex();
-        }
-    });
-
-    // 5. The final, absolute fallback timer. If nothing else works,
-    // redirect after 9 seconds.
-    setTimeout(goIndex, 9000);
-
-
-    // --- Attempt to play the video ---
-    const playPromise = v.play();
-
-    if (playPromise !== undefined) {
-      playPromise.catch(error => {
-        // Autoplay was prevented by the browser. This is common on mobile.
-        console.error("Autoplay failed, redirecting immediately:", error);
-        goIndex(); // Redirect immediately
+    function cleanupUI() {
+      const idsToHide = ['common-menu-open', 'common-menu-overlay', 'game-audio-toggle', 'page-shell-badge'];
+      idsToHide.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
       });
     }
+
+    function clearFallbackTimer() {
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+    }
+
+    function goIndex() {
+      if (redirected) return;
+      redirected = true;
+      clearFallbackTimer();
+      window.location.href = 'index.html';
+    }
+
+    function startPlayback() {
+      if (redirected) return;
+      cleanupUI();
+      if (window.GameAudio) {
+        window.GameAudio.unlockAudio();
+        window.GameAudio.playPageTheme('ambient', 0.22);
+      }
+      const playPromise = v.play();
+      if (playPromise && typeof playPromise.then === 'function') {
+        playPromise.then(() => {
+          clearFallbackTimer();
+          fallbackTimer = window.setTimeout(goIndex, 10000);
+        }).catch(error => {
+          console.warn('Video playback start failed:', error);
+          clearFallbackTimer();
+          fallbackTimer = window.setTimeout(goIndex, 10000);
+        });
+      } else {
+        clearFallbackTimer();
+        fallbackTimer = window.setTimeout(goIndex, 10000);
+      }
+    }
+
+    v.addEventListener('ended', goIndex);
+    v.addEventListener('error', () => {
+      console.warn('Video playback error; continuing after fallback timeout.');
+      clearFallbackTimer();
+      fallbackTimer = window.setTimeout(goIndex, 10000);
+    });
+    
+    if (v.readyState >= 2) {
+      startPlayback();
+    } else {
+      v.addEventListener('loadeddata', startPlayback);
+    }
+
+    document.addEventListener('DOMContentLoaded', cleanupUI);
+    window.addEventListener('load', cleanupUI);
+
+    window.addEventListener('pointerdown', startPlayback, { once: true });
+    window.addEventListener('touchstart', startPlayback, { once: true });
+    window.addEventListener('keydown', startPlayback, { once: true });
+
+    startPlayback();
   })();
 </script>
 </body>

@@ -1,0 +1,190 @@
+﻿<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>مرحله ۵: سیاره زحل</title>
+    <link rel="stylesheet" href="../styles/common.css">
+    <style>
+        @font-face {
+            font-family: 'Vazirmatn';
+            src: url('https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-Regular.woff2') format('woff2');
+            font-weight: normal; font-style: normal;
+        }
+        body, html {
+            margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%;
+            background-color: #000; font-family: 'Vazirmatn', sans-serif; color: white;
+        }
+        .scene-wrapper {
+            width: 100%; height: 100%;
+            background-size: cover; background-position: center;
+            display: flex; justify-content: center; align-items: flex-end;
+            transition: background-image 1s ease-in-out;
+        }
+        #loading-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000; z-index: 1000; display: flex;
+            justify-content: center; align-items: center; text-align: center;
+            font-size: 1.5rem;
+        }
+        .dialogue-container {
+            position: absolute; bottom: 20px; left: 20px; right: 20px;
+            background: rgba(0, 0, 0, 0.85); border: 2px solid #FFD700;
+            border-radius: 15px; padding: 15px; box-sizing: border-box; text-align: center;
+            animation: slideUp 0.5s ease-out; box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+        }
+        @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .dialogue-text { font-size: 1.1rem; line-height: 1.6; margin-bottom: 15px; }
+        .next-btn {
+            padding: 10px 30px; font-size: 1.1rem; background-color: transparent;
+            border: 2px solid #FFD700; color: #FFD700; border-radius: 10px; cursor: pointer;
+            transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+        }
+        .next-btn:hover { background-color: #FFD700; color: black; box-shadow: 0 0 10px #FFD700; }
+        .scene-image { max-width: 200px; max-height: 150px; margin-bottom: 15px; animation: fadeIn 1s ease-in; border-radius: 8px; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+<div id="loading-screen">در حال بارگذاری مرحله ۵...</div>
+<div id="scene" class="scene-wrapper">
+    <div id="dialogue-box" class="dialogue-container">
+        <img id="scene-img" class="scene-image">
+        <p id="dialogue-text" class="dialogue-text"></p>
+        <button id="next-button" class="next-btn">بعدی</button>
+    </div>
+</div>
+<div id="video-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:4000;display:none;justify-content:center;align-items:center;">
+    <video id="video-player" playsinline style="width:100%;height:100%;object-fit:cover;"></video>
+</div>
+
+<script>
+    const scene = document.getElementById('scene');
+    const dialogueBox = document.getElementById('dialogue-box');
+    const videoOverlay = document.getElementById('video-overlay');
+    const videoPlayer = document.getElementById('video-player');
+    const dialogueText = document.getElementById('dialogue-text');
+    const nextButton = document.getElementById('next-button');
+    const sceneImg = document.getElementById('scene-img');
+    const loadingScreen = document.getElementById('loading-screen');
+
+    const finalAssetPaths = {
+        'saturn_bg': '../images/backgrounds/saturn_background.png',
+        'rocket_on_saturn': '../images/rocket_saturn.png',
+        'beaker_and_flag': '../images/beaker_and_flag.png',
+        'flag_planted': '../images/iran_flag_on_saturn.png',
+        'rocket_interior': '../images/backgrounds/rocket_interior.jpg'
+    };
+
+    const assets = {};
+    let storyIndex = 0;
+    const storyScript = [
+        { text: "فضانوردان بزرگ ایرانی توانستند تا به سیاره جدیدی برسند، یعنی زحل.", background: 'saturn_bg' },
+        { text: "آن‌ها اولین تیمی بودند که به زحل می‌رسیدند، به همین دلیل باید درباره‌ی آنجا تحقیق می‌کردند.", image: 'rocket_on_saturn' },
+        { text: "کوروش به موشک برگشت و یک بشر آزمایشگاهی و پرچم ایران بزرگ را با خود آورد.", image: 'beaker_and_flag' },
+        { text: "او مقداری از خاک زحل را برای آزمایش در بشر ریخت." },
+        { text: "سپس، فضانوردان تصمیم گرفتند تا پرچم پرافتخار ایران را در خاک زحل نصب کنند.", image: 'flag_planted' },
+        { text: "بعد از آن، همه به داخل موشک فضایی رفتند تا خاک را آزمایش کنند و اطلاعات را به زمین بفرستند.", background: 'rocket_interior' },
+        { text: "سیاره زحل بسیار امن بود و خبری از آدم فضایی‌ها نبود. خیال فضانوردان راحت بود." },
+        { text: "علت اصلی این سفر، تحقیق علمی و استراحت پس از نبردهای سنگین در مریخ بود." },
+        { text: "تیم فضانوردان ایرانی، خسته اما مصمم، برای ادامه ماجراجویی آماده می‌شدند..." }
+    ];
+
+    function playTransitionVideo(videoSrc) {
+        try {
+            window.shouldAutoExitOnVideoEnd = true;
+            if (videoOverlay) videoOverlay.style.display = 'flex';
+            if (window.playStageVideo) {
+                window.playStageVideo(videoSrc);
+            } else if (videoPlayer) {
+                videoPlayer.src = videoSrc;
+                videoPlayer.play();
+            }
+        } catch (e) {
+            console.warn(e);
+            window.location.href = '../level-select.html';
+        }
+    }
+
+    function showNextScene() {
+        if (storyIndex >= storyScript.length) {
+            try{ window.unlockStageNext && window.unlockStageNext(5); }catch(e){}
+            try{
+                const key = 'unlockedLevel';
+                const existing = parseInt(localStorage.getItem(key) || '1', 10) || 1;
+                const next = Math.max(existing, 5 + 1);
+                localStorage.setItem(key, String(next));
+            }catch(e){}
+            playTransitionVideo('../videos/saturn_to_jupiter.mp4');
+            return;
+        }
+
+        const currentScene = storyScript[storyIndex];
+
+        if (currentScene.background && assets[currentScene.background]) {
+            scene.style.backgroundImage = `url(${assets[currentScene.background].src})`;
+        }
+
+        if (currentScene.image && assets[currentScene.image]) {
+            sceneImg.src = assets[currentScene.image].src;
+            sceneImg.style.display = 'block';
+        } else {
+            sceneImg.style.display = 'none';
+        }
+
+        dialogueText.textContent = currentScene.text;
+
+        if (storyIndex === storyScript.length - 1) {
+            nextButton.textContent = "پایان مرحله";
+        }
+
+        storyIndex++;
+    }
+
+    function loadAssetsAndStart() {
+        let loadedCount = 0;
+        const totalAssets = Object.keys(finalAssetPaths).length;
+        if (totalAssets === 0) {
+            init();
+            return;
+        }
+        for (const key in finalAssetPaths) {
+            const path = finalAssetPaths[key];
+            assets[key] = new Image();
+            assets[key].onload = () => {
+                loadedCount++;
+                if (loadedCount === totalAssets) init();
+            };
+            assets[key].onerror = () => {
+                loadedCount++;
+                if (loadedCount === totalAssets) init();
+            };
+            assets[key].src = path;
+        }
+    }
+
+    function init() {
+        loadingScreen.style.display = 'none';
+        dialogueBox.style.display = 'block';
+        if(assets.saturn_bg) scene.style.backgroundImage = `url(${assets.saturn_bg.src})`;
+        showNextScene();
+    }
+
+    nextButton.addEventListener('click', showNextScene);
+    window.onload = loadAssetsAndStart;
+</script>
+
+<script src="../scripts/video-playback-fix.js"></script>
+<script>
+    (function(){
+        const vp = window.attachVideoHandlers({ videoSelector: '#video-player', overlaySelector: '#video-overlay', redirectTo: '../level-select.html' });
+        window.stageVideoHelper = vp;
+        window.playStageVideo = function(src){ vp.playSrc(src); };
+        window.freeStageVideo = function(){ vp.freeVideo && vp.freeVideo(); };
+        window.unlockStageNext = function(current){ vp.unlockNext && vp.unlockNext(current); };
+        window.getUnlockedLevel = function(){ return vp.getUnlocked ? vp.getUnlocked() : 1; };
+    })();
+</script>
+<script src="../scripts/common.js"></script>
+</body>
+</html>

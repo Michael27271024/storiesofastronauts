@@ -216,10 +216,11 @@
 <body>
 
 <canvas id="starfield"></canvas>
+<script src="scripts/common.js"></script>
 
 <div class="content-wrapper">
     <header>
-        <img src="file:///android_asset/logo.jpg" alt="لوگوی بازی" class="game-logo">
+        <img src="images/logo.jpg" alt="لوگوی بازی" class="game-logo">
         <h1>داستان های فضانوردها</h1>
         <p>
             ۴ فضانورد در تاریخ ۲۱ ژوئن ۲۰۲۵ به فضا رفتند و به دلیل خراب شدن قطعه های سفینه، فضانوردان باید با از سر گذاشتن چندین مرحله به زمین برگردنند.
@@ -230,19 +231,19 @@
         <h2>شخصیت خود را انتخاب کنید</h2>
         <div class="character-grid">
             <div class="character-card" data-name="کوروش">
-                <img src="file:///android_asset/astronaut.png" alt="فضانورد کوروش">
+                <img src="images/characters/astronaut.png" alt="فضانورد کوروش">
                 <span>کوروش</span>
             </div>
             <div class="character-card" data-name="داریوش">
-                <img src="file:///android_asset/astronaut.png" alt="فضانورد داریوش">
+                <img src="images/characters/astronaut.png" alt="فضانورد داریوش">
                 <span>داریوش</span>
             </div>
             <div class="character-card" data-name="سهراب">
-                <img src="file:///android_asset/astronaut.png" alt="فضانورد سهراب">
+                <img src="images/characters/astronaut.png" alt="فضانورد سهراب">
                 <span>سهراب</span>
             </div>
             <div class="character-card" data-name="رستم">
-                <img src="file:///android_asset/astronaut.png" alt="فضانورد رستم">
+                <img src="images/characters/astronaut.png" alt="فضانورد رستم">
                 <span>رستم</span>
             </div>
         </div>
@@ -320,52 +321,18 @@
 
     startButton.addEventListener('click', () => {
         if(selectedCharacter) {
+            if (window.GameAudio) {
+                window.GameAudio.playSfx('select', 0.75);
+                window.GameAudio.playPageTheme('level_select', 0.42);
+            }
             // persist session-only selection for stages
             try { sessionStorage.setItem('selectedCharacter', selectedCharacter); } catch(e){}
             // -- FIX: Navigate to the level select screen --
             window.location.href = 'level-select.html';
         }
     });
-</script>
-<!-- audio manager and shared scripts -->
-<script src="audio-manager.js"></script>
-<script>
-    // Initialize audio assets mapping (filenames). If you add files, keep names in sync.
-    try{
-        if(window.AM){
-            window.AM.init({
-                assets: {
-                    music: {
-                        menu_bgm: 'menu_bgm_loop.wav',
-                        level_select_bgm: 'level_select_loop.wav'
-                    },
-                    sfx: {
-                        click: 'sfx_ui_click.wav',
-                        select: 'sfx_ui_select.wav',
-                        hover: 'sfx_button_hover.wav',
-                        locked: 'sfx_ui_locked.wav'
-                    }
-                },
-                autoplay: true,
-                defaultMusic: 'menu_bgm'
-            });
-            const menuPlaylist = ['menu_bgm', 'level_select_bgm'];
-            const startMenuMusic = () => { try{ window.AM.ensurePlayback(menuPlaylist, { rotateMs: 60000, intervalMs: 1200, durationMs: 90000 }); }catch(e){} };
-            // Play rotating menu music on a user gesture or immediately if allowed
-            document.addEventListener('click', function once(){ startMenuMusic(); document.removeEventListener('click', once); }, { once: true });
-            document.addEventListener('touchstart', function once(){ startMenuMusic(); document.removeEventListener('touchstart', once); }, { once: true, passive: true });
-            document.addEventListener('pointerdown', function once(){ startMenuMusic(); document.removeEventListener('pointerdown', once); }, { once: true, passive: true });
-            document.addEventListener('keydown', function once(){ startMenuMusic(); document.removeEventListener('keydown', once); }, { once: true });
-            document.addEventListener('mousemove', function once(){ startMenuMusic(); document.removeEventListener('mousemove', once); }, { once: true, passive: true });
-            setTimeout(startMenuMusic, 800); // fallback attempt if gestures are delayed
-            setTimeout(startMenuMusic, 800); // fallback attempt if gestures are delayed
-            window.addEventListener('load', startMenuMusic, { once: true });
-        }
-    }catch(e){ console.warn(e); }
 
-        // Force a one-time autoplay attempt for aggressive browsers
-        setTimeout(()=>{ try{ window.AM && window.AM.startPlaylist(['menu_bgm','level_select_bgm'],60000); }catch(e){} }, 1500);
+    if (window.GameAudio) window.GameAudio.playPageTheme('menu', 0.42);
 </script>
-<script src="common.js"></script>
 </body>
 </html>
