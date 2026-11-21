@@ -1,30 +1,24 @@
-# Astronaut Stories — Project Overview
+# Astronaut Stories (داستان‌های فضانوردها) — 100% Native Kotlin & Landscape Edition
 
-این پروژه یک بازی/وب‌اپ محلی است که از یک WebView برای نمایش صفحات HTML و ویدیوهای داخل `app/src/main/assets` استفاده می‌کند.
+A 100% offline, native Kotlin & Jetpack Compose 2D sci-fi action-adventure platformer locked strictly in horizontal **Landscape** orientation and styled after the official Astronaut Stories emblem (Void Black, Obsidian, Copper-Amber Gold, and Warm Cream).
 
-Summary (English):
-- Android app that hosts local HTML/JS/CSS assets in a WebView. The assets contain the game UI and media.
+## Key Features
+- **Strict Landscape-Only Lock**: Locked to horizontal `landscape` mode in `AndroidManifest.xml`, `MainActivity`, and the root Compose viewport (`BoxWithConstraints` 16:9 landscape guard) so the game never rotates or stretches into a vertical portrait layout.
+- **100% Native 60 FPS Game Engine**: Horizontal side-scrolling Jetpack Compose `Canvas` renderer + fixed-timestep physics (`GameSimulation` & `GameCanvasRenderer`) with planetary gravity, 3 AI squad teammates, 8 enemy types (Zombies, Alien Soldiers, Flyers, Splitters, Mini Splitters, Alien Ships, Laser Turrets, Multi-Phase Bosses), dynamic helmet-beam lighting on Mercury/Citadel, and branching Story choices.
+- **100 Story Stages & 4 Offline Game Modes**:
+  - **Story Mode**: 10 Planetary Chapters × 10 Stages (Moon through Return to Earth).
+  - **Endless Survival**: Progressive waves & periodic bosses.
+  - **Timed Blitz Challenge**: 90-second high-speed blitz.
+  - **AI Squad Duel**: Offline competitive duel against an AI rival.
+- **100% Offline Local Persistence & RPG Progression**:
+  - Full local storage via **Room Database** and **Jetpack DataStore** (zero accounts, zero cloud login, zero internet permissions).
+  - 8 Heroes (4 original + 4 unlockable), 5 Weapons, 3 Mission Boosters, 6 Skill Tree upgrades, 16 Achievements with system Share Intent, and Career Analytics.
+- **Media, Accessibility & Hardware Support**:
+  - **Media3 ExoPlayer** for bundled `.mp4` planetary cutscenes + native Compose Canvas cinematic trailer & interactive tutorials.
+  - **SoundPool + MediaPlayer** audio engine across 15 music themes & 18 SFX.
+  - **Persian (RTL), English (LTR), Arabic (RTL)** localization, Dark/Light themes, High-Contrast Accessibility mode, Left-Handed controls, WorkManager daily local mission reminders, and Bluetooth/USB Gamepad + Keyboard controls.
 
-Quick start
-1. Install Android SDK and Android Studio (recommended) with a matching SDK for compileSdk 36.
-2. From project root (Windows PowerShell):
-
-```powershell
-.\gradlew.bat assembleDebug
+## Build & Run
+```bash
+gradle :app:assembleDebug
 ```
-
-Notes & improvements applied in this review:
-- `MainActivity.kt` refactored to use lifecycle-aware coroutines for delayed navigation and safer WebSettings calls.
-- Removed unneeded sensitive permissions from `AndroidManifest.xml` (phone state and location). Re-add them only if features require them.
-- Added `.editorconfig` and a short README. Consider adding Spotless/ktlint/detekt and a CI workflow next.
-
-Next recommended steps
-- Add `ktlint` / `detekt` and configure Spotless for consistent formatting.
-- Add unit tests for any non-UI logic and a GitHub Actions CI that runs lint/build/tests on PRs.
-- Review large assets in `app/src/main/assets` for size (optimize PNGs and compress video files if distribution size matters).
-
-If you want, I can continue and:
-- add formatting and lint tooling (ktlint, detekt),
-- add a GitHub Actions workflow,
-- and migrate Gradle / dependencies to the latest safe versions.
-

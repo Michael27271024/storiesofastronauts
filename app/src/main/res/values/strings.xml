@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">داستان های فضانوردها</string>
+    <string name="notification_channel_name">یادآور مأموریت فضایی</string>
+    <string name="notification_channel_desc">یادآور روزانه برای ادامه ماجراجویی در منظومه شمسی</string>
+    <string name="notification_title">سفینه آماده پرتاب است!</string>
+    <string name="notification_body">فرمانده! مأموریت جدید منظومه شمسی و چالش روزانه منتظر شماست.</string>
 </resources>
