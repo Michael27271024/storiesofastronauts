@@ -1,5 +1,7 @@
 package com.example.astronautstories.ui.navigation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -9,6 +11,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.example.astronautstories.domain.model.GameCatalog
 import com.example.astronautstories.domain.model.GameMode
 import com.example.astronautstories.localization.StringProvider
 import com.example.astronautstories.ui.screens.AchievementsAndStatsScreen
@@ -114,19 +117,26 @@ fun AstronautNavHost(
             )
         }
 
-        composable<RouteArena> { backStackEntry ->
+        composable<RouteArena>(
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None }
+        ) { backStackEntry ->
             val args = backStackEntry.toRoute<RouteArena>()
             val mode = GameMode.entries.firstOrNull { it.name == args.modeName } ?: GameMode.STORY
+            val safeStage = args.stageNumber.coerceIn(1, GameCatalog.TOTAL_STAGES)
             GameArenaScreen(
                 mode = mode,
-                stageNumber = args.stageNumber,
+                stageNumber = safeStage,
                 arenaViewModel = arenaViewModel,
                 bitmapRegistry = container.bitmapRegistry,
                 settings = settings,
                 strings = strings,
                 onNavigateNextStage = { nextStage ->
-                    navController.navigate(RouteArena(GameMode.STORY.name, nextStage)) {
-                        popUpTo(args) { inclusive = true }
+                    val clampedNext = nextStage.coerceIn(1, GameCatalog.TOTAL_STAGES)
+                    navController.navigate(RouteArena(GameMode.STORY.name, clampedNext)) {
+                        popUpTo<RouteArena> { inclusive = true }
                     }
                 },
                 onExitArena = { navController.popBackStack() }

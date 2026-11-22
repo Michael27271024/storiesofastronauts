@@ -75,6 +75,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.astronautstories.assets_loader.AssetVideoPlayer
 import com.example.astronautstories.assets_loader.NativeBitmapRegistry
 import com.example.astronautstories.data.local.AppSettings
+import com.example.astronautstories.domain.model.GameCatalog
 import com.example.astronautstories.domain.model.GameMode
 import com.example.astronautstories.engine.ArenaPhase
 import com.example.astronautstories.engine.GameCanvasView
@@ -84,6 +85,17 @@ import com.example.astronautstories.ui.components.AssetSpriteImage
 import com.example.astronautstories.ui.components.UniformAssetBadge
 import com.example.astronautstories.ui.viewmodel.GameArenaViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.atomic.AtomicBoolean
+
+private enum class StoryTransitionState {
+    IDLE,
+    WAITING_SAVE,
+    PLAYING_VIDEO,
+    NAVIGATING_NEXT,
+    FINISHED_FINALE
+}
 
 @Composable
 fun GameArenaScreen(
@@ -102,79 +114,130 @@ fun GameArenaScreen(
     val isReady by arenaViewModel.isReady.collectAsStateWithLifecycle()
     val autoFire by arenaViewModel.autoFire.collectAsStateWithLifecycle()
     val outcomeSaved by arenaViewModel.outcomeSaved.collectAsStateWithLifecycle()
+    val sessionId by arenaViewModel.sessionId.collectAsStateWithLifecycle()
     val haptic = LocalHapticFeedback.current
+    val ownerToken = remember { arenaViewModel.allocateOwnerToken() }
 
-    var activeTransitionVideo by remember(mode, stageNumber) { mutableStateOf<String?>(null) }
-    var transitionTriggered by remember(mode, stageNumber) { mutableStateOf(false) }
+    var activeTransitionVideo by remember(mode, stageNumber, sessionId) { mutableStateOf<String?>(null) }
+    var transitionState by remember(mode, stageNumber, sessionId) { mutableStateOf(StoryTransitionState.IDLE) }
+    val transitionGuard = remember(mode, stageNumber, sessionId) { AtomicBoolean(false) }
+    val nextNavigateGuard = remember(mode, stageNumber, sessionId) { AtomicBoolean(false) }
 
-    LaunchedEffect(mode, stageNumber) {
+    val sim = arenaViewModel.simulation
+    val sessionMatchesTarget = isReady &&
+        sim != null &&
+        sim.mode == mode &&
+        sim.stageDef.stageNumber == stageNumber &&
+        hud.mode == mode &&
+        hud.stageNumber == stageNumber
+
+    fun completeStoryStageTransition() {
         activeTransitionVideo = null
-        transitionTriggered = false
-        arenaViewModel.startSession(mode, stageNumber)
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            arenaViewModel.setAudioMutedForCutscene(false)
-            arenaViewModel.stopSession()
+        arenaViewModel.setAudioMutedForCutscene(false, ownerToken)
+        arenaViewModel.resetInputs()
+        if (stageNumber < GameCatalog.TOTAL_STAGES) {
+            transitionState = StoryTransitionState.NAVIGATING_NEXT
+            if (nextNavigateGuard.compareAndSet(false, true)) {
+                onNavigateNextStage((stageNumber + 1).coerceAtMost(GameCatalog.TOTAL_STAGES))
+            }
+        } else {
+            transitionState = StoryTransitionState.FINISHED_FINALE
         }
     }
 
-    DisposableEffect(activeTransitionVideo) {
+    LaunchedEffect(mode, stageNumber, ownerToken) {
+        arenaViewModel.startSession(mode, stageNumber, ownerToken)
+    }
+
+    DisposableEffect(ownerToken) {
+        onDispose {
+            arenaViewModel.setAudioMutedForCutscene(false, ownerToken)
+            arenaViewModel.stopSessionIfOwner(ownerToken)
+        }
+    }
+
+    DisposableEffect(activeTransitionVideo, ownerToken) {
         if (activeTransitionVideo != null) {
-            arenaViewModel.setAudioMutedForCutscene(true)
+            arenaViewModel.setAudioMutedForCutscene(true, ownerToken)
         }
         onDispose {
             if (activeTransitionVideo != null) {
-                arenaViewModel.setAudioMutedForCutscene(false)
+                arenaViewModel.setAudioMutedForCutscene(false, ownerToken)
             }
         }
     }
 
-    // Automatic Stage Completion -> Story Cutscene Playback -> Automatic Next Stage Transition
-    LaunchedEffect(hud.phase, outcomeSaved, mode, stageNumber) {
-        if (hud.phase == ArenaPhase.VICTORY &&
+    // Automatic Stage Completion -> Story Cutscene Playback (at Chapter Bosses) -> Automatic Next Stage Transition
+    LaunchedEffect(hud.phase, mode, stageNumber, sessionId, sessionMatchesTarget) {
+        if (sessionMatchesTarget &&
+            hud.phase == ArenaPhase.VICTORY &&
             mode == GameMode.STORY &&
-            stageNumber < 100 &&
-            outcomeSaved &&
-            !transitionTriggered
+            transitionGuard.compareAndSet(false, true)
         ) {
-            transitionTriggered = true
-            delay(1100L)
-            val video = arenaViewModel.simulation?.stageDef?.transitionVideoAsset
-            if (video != null && bitmapRegistry.assetExists(video)) {
+            transitionState = StoryTransitionState.WAITING_SAVE
+            delay(850L)
+            withTimeoutOrNull(1800L) {
+                arenaViewModel.outcomeSaved.first { it }
+            }
+            val currentSim = arenaViewModel.simulation
+            val video = if (currentSim?.stageDef?.stageNumber == stageNumber) {
+                currentSim.stageDef.transitionVideoAsset
+            } else {
+                GameCatalog.getStage(stageNumber).transitionVideoAsset
+            }
+            if (!video.isNullOrBlank() && bitmapRegistry.assetExists(video)) {
+                transitionState = StoryTransitionState.PLAYING_VIDEO
                 activeTransitionVideo = video
             } else {
-                onNavigateNextStage(stageNumber + 1)
+                completeStoryStageTransition()
             }
+        }
+    }
+
+    // Screen-level safety watchdog: prevents stalling in PLAYING_VIDEO or NAVIGATING_NEXT under any condition
+    LaunchedEffect(transitionState, activeTransitionVideo, stageNumber, sessionId) {
+        when (transitionState) {
+            StoryTransitionState.PLAYING_VIDEO -> {
+                delay(15000L)
+                completeStoryStageTransition()
+            }
+            StoryTransitionState.NAVIGATING_NEXT -> {
+                delay(1200L)
+                if (stageNumber < GameCatalog.TOTAL_STAGES) {
+                    onNavigateNextStage((stageNumber + 1).coerceAtMost(GameCatalog.TOTAL_STAGES))
+                } else {
+                    transitionState = StoryTransitionState.FINISHED_FINALE
+                }
+            }
+            else -> Unit
         }
     }
 
     BackHandler {
-        if (activeTransitionVideo != null) {
-            // Story cutscene must finish completely before advancing to next stage
-        } else if (hud.phase == ArenaPhase.PLAYING) {
-            arenaViewModel.togglePause(!isPaused)
-        } else if (!transitionTriggered) {
-            onExitArena()
+        when {
+            transitionState == StoryTransitionState.PLAYING_VIDEO || activeTransitionVideo != null -> {
+                // Wait for active cutscene playback (watchdog guarantees completion)
+            }
+            sessionMatchesTarget && hud.phase == ArenaPhase.PLAYING -> {
+                arenaViewModel.togglePause(!isPaused)
+            }
+            transitionState != StoryTransitionState.WAITING_SAVE -> {
+                onExitArena()
+            }
         }
     }
 
-    if (activeTransitionVideo != null) {
+    val currentVideo = activeTransitionVideo
+    if (currentVideo != null) {
         AssetVideoPlayer(
-            assetPath = activeTransitionVideo!!,
+            assetPath = currentVideo,
             statusLabel = strings.autoVideoStatusLabel,
-            onCompleted = {
-                activeTransitionVideo = null
-                arenaViewModel.setAudioMutedForCutscene(false)
-                onNavigateNextStage((stageNumber + 1).coerceAtMost(100))
-            }
+            onCompleted = { completeStoryStageTransition() }
         )
         return
     }
 
-    val sim = arenaViewModel.simulation
-    if (!isReady || sim == null) {
+    if (!sessionMatchesTarget || sim == null) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -536,7 +599,7 @@ fun GameArenaScreen(
                         Text(strings.resumeBtn)
                     }
                     FilledTonalButton(
-                        onClick = { arenaViewModel.startSession(mode, stageNumber) },
+                        onClick = { arenaViewModel.startSession(mode, stageNumber, ownerToken) },
                         modifier = Modifier.fillMaxWidth().height(48.dp).testTag("arena_restart_button")
                     ) {
                         Text(strings.restartBtn)
@@ -595,7 +658,10 @@ fun GameArenaScreen(
             hud.phase == ArenaPhase.VICTORY || hud.phase == ArenaPhase.GAME_OVER -> {
                 val won = hud.phase == ArenaPhase.VICTORY
                 val accuracy = if (hud.shotsFired > 0) (hud.shotsHit * 100) / hud.shotsFired else 100
-                val isAutoStoryTransition = won && mode == GameMode.STORY && stageNumber < 100
+                val isAutoStoryTransition = won &&
+                    mode == GameMode.STORY &&
+                    transitionState != StoryTransitionState.FINISHED_FINALE &&
+                    (stageNumber < GameCatalog.TOTAL_STAGES || sim.stageDef.transitionVideoAsset != null)
 
                 ArenaModalCard {
                     if (won) {
@@ -668,7 +734,7 @@ fun GameArenaScreen(
                         }
                     } else {
                         FilledTonalButton(
-                            onClick = { arenaViewModel.startSession(mode, stageNumber) },
+                            onClick = { arenaViewModel.startSession(mode, stageNumber, ownerToken) },
                             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("arena_retry_button")
                         ) {
                             Text(strings.retryBtn)

@@ -5,30 +5,36 @@ import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.SoundPool
 import android.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import java.util.concurrent.Executors
 
 class GameAudioEngine(context: Context) {
     private val appContext = context.applicationContext
     private val assetManager = appContext.assets
-    private val ioScope = CoroutineScope(Dispatchers.IO)
+    private val audioExecutor = Executors.newSingleThreadExecutor()
+    private val playerLock = Any()
 
     private var mediaPlayer: MediaPlayer? = null
     private var currentThemeKey: String? = null
     private var musicVolume: Float = 0.55f
     private var sfxVolume: Float = 0.80f
     private var isPausedByLifecycle = false
+    private var isReleased = false
 
-    private val soundPool: SoundPool = SoundPool.Builder()
-        .setMaxStreams(10)
-        .setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_GAME)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
-        )
-        .build()
+    private val soundPool: SoundPool = try {
+        SoundPool.Builder()
+            .setMaxStreams(10)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_GAME)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            .build()
+    } catch (e: Exception) {
+        Log.e("GameAudio", "Failed to build SoundPool: ${e.message}")
+        @Suppress("DEPRECATION")
+        SoundPool(10, android.media.AudioManager.STREAM_MUSIC, 0)
+    }
 
     private val sfxIds = mutableMapOf<String, Int>()
 
@@ -69,11 +75,15 @@ class GameAudioEngine(context: Context) {
     )
 
     init {
-        ioScope.launch {
+        audioExecutor.execute {
             sfxMap.forEach { (key, path) ->
+                if (isReleased) return@forEach
                 try {
                     assetManager.openFd(path).use { afd ->
-                        sfxIds[key] = soundPool.load(afd, 1)
+                        val id = soundPool.load(afd, 1)
+                        if (id > 0) {
+                            sfxIds[key] = id
+                        }
                     }
                 } catch (e: Exception) {
                     Log.w("GameAudio", "Failed loading SFX $key: ${e.message}")
@@ -83,68 +93,112 @@ class GameAudioEngine(context: Context) {
     }
 
     fun updateVolumes(music: Float, sfx: Float) {
-        musicVolume = music.coerceIn(0f, 1f)
-        sfxVolume = sfx.coerceIn(0f, 1f)
-        try {
-            mediaPlayer?.setVolume(musicVolume, musicVolume)
-        } catch (_: Exception) {}
+        val m = music.coerceIn(0f, 1f)
+        val s = sfx.coerceIn(0f, 1f)
+        musicVolume = m
+        sfxVolume = s
+        audioExecutor.execute {
+            synchronized(playerLock) {
+                try {
+                    mediaPlayer?.setVolume(m, m)
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     fun playTheme(key: String, loop: Boolean = true) {
-        if (currentThemeKey == key && mediaPlayer != null) return
         val path = themeMap[key] ?: themeMap["ambient"] ?: return
-        currentThemeKey = key
-        try {
-            mediaPlayer?.stop()
-            mediaPlayer?.release()
-            mediaPlayer = null
+        audioExecutor.execute {
+            synchronized(playerLock) {
+                if (isReleased) return@synchronized
+                if (currentThemeKey == key && mediaPlayer != null) {
+                    try {
+                        if (mediaPlayer?.isPlaying == false && !isPausedByLifecycle) {
+                            mediaPlayer?.start()
+                        }
+                    } catch (_: Exception) {}
+                    return@synchronized
+                }
 
-            val player = MediaPlayer()
-            assetManager.openFd(path).use { afd ->
-                player.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                currentThemeKey = key
+                try {
+                    mediaPlayer?.apply {
+                        try { stop() } catch (_: Exception) {}
+                        try { release() } catch (_: Exception) {}
+                    }
+                    mediaPlayer = null
+
+                    val player = MediaPlayer()
+                    assetManager.openFd(path).use { afd ->
+                        player.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                    }
+                    player.isLooping = loop
+                    player.setVolume(musicVolume, musicVolume)
+                    player.prepare()
+                    if (!isPausedByLifecycle && !isReleased) {
+                        player.start()
+                    }
+                    mediaPlayer = player
+                } catch (e: Exception) {
+                    Log.w("GameAudio", "Failed playing music $key: ${e.message}")
+                    mediaPlayer = null
+                }
             }
-            player.isLooping = loop
-            player.setVolume(musicVolume, musicVolume)
-            player.prepare()
-            if (!isPausedByLifecycle) {
-                player.start()
-            }
-            mediaPlayer = player
-        } catch (e: Exception) {
-            Log.w("GameAudio", "Failed playing music $key: ${e.message}")
         }
     }
 
     fun playSfx(key: String, rate: Float = 1.0f) {
-        if (sfxVolume <= 0.01f) return
+        if (isReleased || sfxVolume <= 0.01f) return
         val id = sfxIds[key] ?: return
-        soundPool.play(id, sfxVolume, sfxVolume, 1, 0, rate)
+        try {
+            soundPool.play(id, sfxVolume, sfxVolume, 1, 0, rate)
+        } catch (e: Exception) {
+            Log.w("GameAudio", "Failed playing sfx $key: ${e.message}")
+        }
     }
 
     fun onPauseLifecycle() {
         isPausedByLifecycle = true
-        try {
-            if (mediaPlayer?.isPlaying == true) {
-                mediaPlayer?.pause()
+        audioExecutor.execute {
+            synchronized(playerLock) {
+                try {
+                    if (mediaPlayer?.isPlaying == true) {
+                        mediaPlayer?.pause()
+                    }
+                } catch (_: Exception) {}
             }
-        } catch (_: Exception) {}
+        }
     }
 
     fun onResumeLifecycle() {
         isPausedByLifecycle = false
-        try {
-            if (mediaPlayer != null && mediaPlayer?.isPlaying == false) {
-                mediaPlayer?.start()
+        audioExecutor.execute {
+            synchronized(playerLock) {
+                if (isReleased || isPausedByLifecycle) return@synchronized
+                try {
+                    if (mediaPlayer != null && mediaPlayer?.isPlaying == false) {
+                        mediaPlayer?.start()
+                    }
+                } catch (_: Exception) {}
             }
-        } catch (_: Exception) {}
+        }
     }
 
     fun release() {
-        try {
-            mediaPlayer?.stop()
-            mediaPlayer?.release()
-            mediaPlayer = null
-            soundPool.release()
-        } catch (_: Exception) {}
+        isReleased = true
+        audioExecutor.execute {
+            synchronized(playerLock) {
+                try {
+                    mediaPlayer?.stop()
+                } catch (_: Exception) {}
+                try {
+                    mediaPlayer?.release()
+                } catch (_: Exception) {}
+                mediaPlayer = null
+                try {
+                    soundPool.release()
+                } catch (_: Exception) {}
+            }
+        }
     }
 }

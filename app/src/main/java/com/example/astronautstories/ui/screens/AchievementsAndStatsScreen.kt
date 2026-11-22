@@ -52,6 +52,7 @@ import com.example.astronautstories.assets_loader.NativeBitmapRegistry
 import com.example.astronautstories.data.local.AchievementEntity
 import com.example.astronautstories.data.local.PlayerProgressEntity
 import com.example.astronautstories.data.local.StageRecordEntity
+import com.example.astronautstories.domain.model.GameCatalog
 import com.example.astronautstories.domain.model.StoreAndAchievements
 import com.example.astronautstories.localization.AppLanguage
 import com.example.astronautstories.localization.GameStrings
@@ -299,12 +300,13 @@ fun AchievementsAndStatsScreen(
             } else {
                 val accuracy = if (progress.totalShotsFired > 0) (progress.totalShotsHit * 100) / progress.totalShotsFired else 0
                 val totalStars = stageRecords.values.sumOf { it.stars }
+                val clampedUnlocked = progress.unlockedStage.coerceIn(1, GameCatalog.TOTAL_STAGES)
                 val minsPlayed = progress.totalPlayTimeSeconds / 60L
 
                 val kpis = listOf(
                     (if (language == AppLanguage.ENGLISH) "Commander Level" else "سطح فرمانده") to "${progress.level} (${progress.xp} XP)",
-                    (if (language == AppLanguage.ENGLISH) "Story Unlocked" else "مراحل داستانی") to "${progress.unlockedStage} / 100",
-                    (if (language == AppLanguage.ENGLISH) "Total Stars" else "مجموع ستاره‌ها") to "$totalStars / 300",
+                    (if (language == AppLanguage.ENGLISH) "Story Unlocked" else "مراحل داستانی") to "$clampedUnlocked / ${GameCatalog.TOTAL_STAGES}",
+                    (if (language == AppLanguage.ENGLISH) "Total Stars" else "مجموع ستاره‌ها") to "$totalStars / ${GameCatalog.MAX_STARS}",
                     (if (language == AppLanguage.ENGLISH) "Total Score" else "امتیاز کل") to "${progress.totalScore}",
                     (if (language == AppLanguage.ENGLISH) "Endless Best" else "رکورد بی‌پایان") to "${progress.endlessBestScore}",
                     (if (language == AppLanguage.ENGLISH) "Challenge Best" else "رکورد چالش") to "${progress.challengeBestScore}",
@@ -396,7 +398,7 @@ fun AchievementsAndStatsScreen(
                                     else -> {
                                         Button(
                                             onClick = {
-                                                shareText("${strings.appTitle}: Level ${progress.level}, Stage ${progress.unlockedStage}/100, Score ${progress.totalScore}, Accuracy $accuracy%!")
+                                                shareText("${strings.appTitle}: Level ${progress.level}, Stage $clampedUnlocked/${GameCatalog.TOTAL_STAGES}, Score ${progress.totalScore}, Accuracy $accuracy%!")
                                             },
                                             modifier = Modifier
                                                 .weight(1f)

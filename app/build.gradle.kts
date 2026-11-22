@@ -51,6 +51,9 @@ android {
     buildFeatures {
         compose = true
     }
+    androidResources {
+        noCompress += listOf("mp4", "wav")
+    }
 }
 
 dependencies {

@@ -55,11 +55,11 @@ object StoreAndAchievements {
 
     val achievements: List<AchievementCatalog> = listOf(
         AchievementCatalog("first_launch", "نخستین پرتاب", "First Liftoff", "اولین مأموریت خود را به پایان برسانید", 50, 1),
-        AchievementCatalog("moon_survivor", "فاتح ماه", "Moon Conqueror", "تمامی ۱۰ مرحله فصل ماه را تکمیل کنید", 120, 10),
-        AchievementCatalog("mars_raider", "شکارچی مریخ", "Mars Raider", "به مرحله ۳۰ و پایگاه سرخ برسید", 180, 30),
-        AchievementCatalog("saturn_scientist", "دانشمند زحل", "Saturn Scientist", "مأموریت علمی زحل را کامل کنید", 150, 40),
-        AchievementCatalog("mercury_shadow", "شبح عطارد", "Mercury Shadow", "از دوراهی تاریک عطارد عبور کنید", 220, 60),
-        AchievementCatalog("earth_hero", "قهرمان بازگشت به زمین", "Hero of Earth", "تمامی ۱۰۰ مرحله داستانی را فتح کنید", 1000, 100),
+        AchievementCatalog("moon_survivor", "فاتح ماه", "Moon Conqueror", "تمامی ۵ مرحله فصل ماه را تکمیل کنید", 120, 5),
+        AchievementCatalog("mars_raider", "شکارچی مریخ", "Mars Raider", "به مرحله ۱۵ و نبرد مریخ برسید", 180, 15),
+        AchievementCatalog("saturn_scientist", "دانشمند زحل", "Saturn Scientist", "مأموریت علمی زحل را کامل کنید", 150, 20),
+        AchievementCatalog("mercury_shadow", "شبح عطارد", "Mercury Shadow", "از دوراهی تاریک عطارد عبور کنید", 220, 30),
+        AchievementCatalog("earth_hero", "قهرمان بازگشت به زمین", "Hero of Earth", "تمامی ۵۰ مرحله داستانی را فتح کنید", 1000, 50),
         AchievementCatalog("alien_hunter_25", "شکارچی تازه‌کار", "Rookie Hunter", "۲۵ موجود فضایی را شکست دهید", 80, 25),
         AchievementCatalog("alien_hunter_150", "فرمانده پاک‌ساز", "Fleet Exterminator", "۱۵۰ موجود فضایی را شکست دهید", 200, 150),
         AchievementCatalog("alien_hunter_500", "اسطوره کهکشان", "Galactic Legend", "۵۰۰ موجود فضایی را شکست دهید", 500, 500),

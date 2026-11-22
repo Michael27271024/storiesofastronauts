@@ -59,6 +59,7 @@ import com.example.astronautstories.R
 import com.example.astronautstories.assets_loader.NativeBitmapRegistry
 import com.example.astronautstories.data.local.AppSettings
 import com.example.astronautstories.data.local.PlayerProgressEntity
+import com.example.astronautstories.domain.model.GameCatalog
 import com.example.astronautstories.domain.model.GameMode
 import com.example.astronautstories.domain.model.HeroId
 import com.example.astronautstories.localization.AppLanguage
@@ -284,8 +285,9 @@ fun CommandHubScreen(
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.sp),
                             color = Color(0xFFDCC9AE)
                         )
+                        val clampedUnlocked = progress.unlockedStage.coerceIn(1, GameCatalog.TOTAL_STAGES)
                         Button(
-                            onClick = { onLaunchMode(GameMode.STORY, progress.unlockedStage) },
+                            onClick = { onLaunchMode(GameMode.STORY, clampedUnlocked) },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
                                 contentColor = MaterialTheme.colorScheme.onPrimary
@@ -298,7 +300,7 @@ fun CommandHubScreen(
                             Icon(Icons.Default.RocketLaunch, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "${strings.startMission} (${progress.unlockedStage}/100)",
+                                text = "${strings.startMission} ($clampedUnlocked/${GameCatalog.TOTAL_STAGES})",
                                 style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
                                 fontWeight = FontWeight.Bold
                             )
@@ -329,9 +331,10 @@ fun CommandHubScreen(
                             .weight(1f),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        val clampedUnlocked = progress.unlockedStage.coerceIn(1, GameCatalog.TOTAL_STAGES)
                         ModeActionCard(
                             title = strings.storyMode,
-                            subtitle = "${progress.unlockedStage} / 100",
+                            subtitle = "$clampedUnlocked / ${GameCatalog.TOTAL_STAGES}",
                             assetPath = "images/moon_guardians_logo.png",
                             bitmapRegistry = bitmapRegistry,
                             accent = MaterialTheme.colorScheme.primary,

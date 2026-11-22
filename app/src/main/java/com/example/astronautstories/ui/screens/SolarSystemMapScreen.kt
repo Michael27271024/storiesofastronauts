@@ -80,7 +80,8 @@ fun SolarSystemMapScreen(
     onResetProgress: () -> Unit,
     onBack: () -> Unit
 ) {
-    val initialChapter = ((progress.unlockedStage - 1) / 10 + 1).coerceIn(1, 10)
+    val clampedUnlocked = progress.unlockedStage.coerceIn(1, GameCatalog.TOTAL_STAGES)
+    val initialChapter = ((clampedUnlocked - 1) / GameCatalog.STAGES_PER_CHAPTER + 1).coerceIn(1, GameCatalog.TOTAL_CHAPTERS)
     var selectedChapter by remember { mutableIntStateOf(initialChapter) }
     var chapterPage by remember { mutableIntStateOf(if (initialChapter > 5) 1 else 0) }
     var showResetDialog by remember { mutableStateOf(false) }
@@ -144,7 +145,7 @@ fun SolarSystemMapScreen(
                 },
                 actions = {
                     Text(
-                        text = "★ $totalStars/300",
+                        text = "★ $totalStars/${GameCatalog.MAX_STARS}",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.padding(end = 4.dp)
@@ -307,97 +308,99 @@ fun SolarSystemMapScreen(
                 }
             }
 
-            // Fixed 5x2 Stage Grid (Zero Scroll, Zero Ellipsis)
-            Column(
+            // Fixed 5-Stage Chapter Grid (5 distinct stages per chapter, Zero Scroll, Zero Ellipsis)
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                chapterStages.chunked(5).forEach { rowStages ->
-                    Row(
+                chapterStages.forEach { st ->
+                    val unlocked = st.stageNumber <= clampedUnlocked
+                    val record = stageRecords[st.stageNumber]
+                    val stars = record?.stars ?: 0
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (unlocked) MaterialTheme.colorScheme.surface
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                        ),
+                        border = BorderStroke(
+                            width = if (st.hasBoss) 2.dp else 1.dp,
+                            color = if (!unlocked) MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+                            else if (st.hasBoss) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+                        ),
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable {
+                                if (unlocked) {
+                                    onSelectStage(st.stageNumber)
+                                } else {
+                                    scope.launch { snackbarHostState.showSnackbar(strings.stageLockedMsg) }
+                                }
+                            }
+                            .testTag("stage_card_${st.stageNumber}")
                     ) {
-                        rowStages.forEach { st ->
-                            val unlocked = st.stageNumber <= progress.unlockedStage
-                            val record = stageRecords[st.stageNumber]
-                            val stars = record?.stars ?: 0
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (unlocked) MaterialTheme.colorScheme.surface
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                                ),
-                                border = BorderStroke(
-                                    width = if (st.hasBoss) 2.dp else 1.dp,
-                                    color = if (!unlocked) MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-                                    else if (st.hasBoss) MaterialTheme.colorScheme.error
-                                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clickable {
-                                        if (unlocked) {
-                                            onSelectStage(st.stageNumber)
-                                        } else {
-                                            scope.launch { snackbarHostState.showSnackbar(strings.stageLockedMsg) }
-                                        }
-                                    }
-                                    .testTag("stage_card_${st.stageNumber}")
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 10.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(8.dp),
-                                    verticalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "#${st.stageNumber}",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (unlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            if (st.hasDynamicDarkness) {
-                                                Icon(Icons.Default.Brightness2, contentDescription = "Dark", tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(14.dp))
-                                            }
-                                            if (st.hasBoss) {
-                                                Icon(Icons.Default.Warning, contentDescription = "Boss", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp))
-                                            }
-                                            if (!unlocked) {
-                                                Icon(Icons.Default.Lock, contentDescription = strings.lockedLabel, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
-                                            }
-                                        }
+                                Text(
+                                    text = "#${st.stageNumber}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (unlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    if (st.hasDynamicDarkness) {
+                                        Icon(Icons.Default.Brightness2, contentDescription = "Dark", tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(16.dp))
                                     }
-
-                                    Text(
-                                        text = if (language == AppLanguage.ENGLISH) st.titleEn else st.titleFa,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, lineHeight = 14.sp),
-                                        maxLines = 2
-                                    )
-
-                                    Row {
-                                        repeat(3) { idx ->
-                                            Icon(
-                                                imageVector = if (idx < stars) Icons.Default.Star else Icons.Default.StarBorder,
-                                                contentDescription = null,
-                                                tint = if (idx < stars) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                        }
+                                    if (st.hasBoss) {
+                                        Icon(Icons.Default.Warning, contentDescription = "Boss", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                    }
+                                    if (!unlocked) {
+                                        Icon(Icons.Default.Lock, contentDescription = strings.lockedLabel, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                                     }
                                 }
                             }
+
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    text = if (language == AppLanguage.ENGLISH) st.titleEn else st.titleFa,
+                                    style = MaterialTheme.typography.titleSmall.copy(fontSize = 12.5.sp, lineHeight = 16.sp),
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 3
+                                )
+                                if (st.hasBoss) {
+                                    Text(
+                                        text = if (language == AppLanguage.ENGLISH) "Chapter Finale" else "باس نهایی فصل",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                repeat(3) { idx ->
+                                    Icon(
+                                        imageVector = if (idx < stars) Icons.Default.Star else Icons.Default.StarBorder,
+                                        contentDescription = null,
+                                        tint = if (idx < stars) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
                         }
-                        repeat(5 - rowStages.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }

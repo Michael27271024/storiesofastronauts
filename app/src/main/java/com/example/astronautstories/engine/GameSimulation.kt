@@ -137,6 +137,8 @@ enum class ArenaPhase {
 }
 
 data class HudSnapshot(
+    val mode: GameMode = GameMode.STORY,
+    val stageNumber: Int = 0,
     val phase: ArenaPhase = ArenaPhase.BRIEFING,
     val stageTitle: String = "",
     val objectiveText: String = "",
@@ -592,6 +594,7 @@ class GameSimulation(
             player.specialCooldown = 8.0f
             onSfx("explosion")
             spawnExplosion(player.x + player.width / 2f, player.y + player.height / 2f, hero.accentColor, 20)
+            val defeated = mutableListOf<EnemyEntity>()
             val iter = enemies.iterator()
             while (iter.hasNext()) {
                 val e = iter.next()
@@ -599,10 +602,11 @@ class GameSimulation(
                     e.hp -= (4 + fireSkill * 2)
                     if (e.hp <= 0) {
                         iter.remove()
-                        onEnemyDefeated(e)
+                        defeated.add(e)
                     }
                 }
             }
+            defeated.forEach { onEnemyDefeated(it) }
         }
     }
 
@@ -768,7 +772,7 @@ class GameSimulation(
 
     private fun updatePickups(dt: Float) {
         val magnetRadius = 140f + luckSkill * 28f
-        for (p in pickups) {
+        for (p in pickups.toList()) {
             if (p.collected) continue
 
             if (p.kind != PickupKind.GUN && p.kind != PickupKind.HOSTAGE && p.kind != PickupKind.ROCKET_PART) {
@@ -974,6 +978,8 @@ class GameSimulation(
         val horizProgress = ((player.x - 120f) / (worldWidth - 360f).coerceAtLeast(1f)).coerceIn(0f, 1f)
 
         return HudSnapshot(
+            mode = mode,
+            stageNumber = stageDef.stageNumber,
             phase = phase,
             stageTitle = stageDef.titleFa,
             objectiveText = objText,

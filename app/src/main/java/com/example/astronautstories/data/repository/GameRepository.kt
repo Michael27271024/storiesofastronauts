@@ -6,6 +6,7 @@ import com.example.astronautstories.data.local.OwnedItemEntity
 import com.example.astronautstories.data.local.PlayerProgressEntity
 import com.example.astronautstories.data.local.SkillLevelEntity
 import com.example.astronautstories.data.local.StageRecordEntity
+import com.example.astronautstories.domain.model.GameCatalog
 import com.example.astronautstories.domain.model.GameMode
 import com.example.astronautstories.domain.model.HeroId
 import com.example.astronautstories.domain.model.ShopCategory
@@ -14,12 +15,16 @@ import com.example.astronautstories.domain.model.SkillType
 import com.example.astronautstories.domain.model.StoreAndAchievements
 import com.example.astronautstories.domain.model.WeaponType
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class GameRepository(
     private val dao: GameDao
 ) {
-    val progressFlow: Flow<PlayerProgressEntity> = dao.observeProgress().map { it ?: PlayerProgressEntity() }
+    val progressFlow: Flow<PlayerProgressEntity> = dao.observeProgress().map { raw ->
+        val safe = raw ?: PlayerProgressEntity()
+        safe.copy(unlockedStage = safe.unlockedStage.coerceIn(1, GameCatalog.TOTAL_STAGES))
+    }
     val stageRecordsFlow: Flow<Map<Int, StageRecordEntity>> =
         dao.observeStageRecords().map { list -> list.associateBy { it.stageNumber } }
     val ownedItemIdsFlow: Flow<Set<String>> =
@@ -160,9 +165,10 @@ class GameRepository(
             newSkillPoints++
         }
 
+        val safePrevUnlocked = prev.unlockedStage.coerceIn(1, GameCatalog.TOTAL_STAGES)
         val newUnlocked = if (mode == GameMode.STORY && won) {
-            maxOf(prev.unlockedStage, (stageNumber + 1).coerceAtMost(100))
-        } else prev.unlockedStage
+            maxOf(safePrevUnlocked, (stageNumber + 1).coerceAtMost(GameCatalog.TOTAL_STAGES))
+        } else safePrevUnlocked
 
         val updated = prev.copy(
             level = newLevel,
@@ -209,7 +215,8 @@ class GameRepository(
         val progress = dao.getProgressOnce() ?: return
         val owned = dao.getOwnedItemsOnce().map { it.itemId }.toSet()
         val skills = dao.getSkillLevelsOnce().sumOf { it.level }
-        val completedStages = (progress.unlockedStage - 1).coerceAtLeast(0)
+        val safeUnlocked = progress.unlockedStage.coerceIn(1, GameCatalog.TOTAL_STAGES)
+        val completedStages = (safeUnlocked - 1).coerceAtLeast(0)
         val existing = dao.getAchievementsOnce().associateBy { it.achievementId }
 
         var bonusCrystals = 0
@@ -217,9 +224,9 @@ class GameRepository(
             val currentVal = when (cat.id) {
                 "first_launch" -> if (completedStages >= 1 || progress.totalScore > 0) 1 else 0
                 "moon_survivor" -> completedStages
-                "mars_raider" -> progress.unlockedStage
-                "saturn_scientist" -> progress.unlockedStage
-                "mercury_shadow" -> progress.unlockedStage
+                "mars_raider" -> safeUnlocked
+                "saturn_scientist" -> safeUnlocked
+                "mercury_shadow" -> safeUnlocked
                 "earth_hero" -> completedStages
                 "alien_hunter_25", "alien_hunter_150", "alien_hunter_500" -> progress.enemiesDefeated
                 "boss_slayer" -> progress.bossesDefeated

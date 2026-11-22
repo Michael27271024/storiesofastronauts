@@ -1,7 +1,5 @@
 package com.example.astronautstories.domain.model
 
-import androidx.compose.ui.graphics.Color
-
 enum class GameMode {
     STORY,
     ENDLESS,
@@ -122,7 +120,7 @@ data class PlanetChapter(
     val accentHex: Long,
     val gravity: Float,
     val musicKey: String,
-    val transitionVideoAsset: String?
+    val transitionVideoAsset: String
 ) {
     fun localizedName(langCode: String): String = when (langCode) {
         "en" -> nameEn
@@ -154,37 +152,40 @@ data class StageDefinition(
 )
 
 object GameCatalog {
+    const val TOTAL_CHAPTERS = 10
+    const val STAGES_PER_CHAPTER = 5
+    const val TOTAL_STAGES = TOTAL_CHAPTERS * STAGES_PER_CHAPTER // 50
+    const val MAX_STARS = TOTAL_STAGES * 3 // 150
 
     val chapters: List<PlanetChapter> = listOf(
         PlanetChapter(1, "ماه", "Moon", "القمر", "فصل ۱: سقوط و جمع‌آوری اکسیژن", "images/backgrounds/space_station.png", 0xFF616161, 0xFF0B1020, 0xFF1A2238, 0xFF00D9FF, 0.34f, "stage1", "videos/moon_to_mars.mp4"),
-        PlanetChapter(2, "ایستگاه مداری", "Orbital Station", "المحطة المدارية", "فصل ۲: دفاع از پایگاه فضایی", "images/backgrounds/Inside_the_ship.jpg", 0xFF475569, 0xFF081226, 0xFF15294A, 0xFF38BDF8, 0.42f, "stage2", null),
+        PlanetChapter(2, "ایستگاه مداری", "Orbital Station", "المحطة المدارية", "فصل ۲: دفاع از پایگاه فضایی", "images/backgrounds/Inside_the_ship.jpg", 0xFF475569, 0xFF081226, 0xFF15294A, 0xFF38BDF8, 0.42f, "stage2", "videos/station_to_mars.mp4"),
         PlanetChapter(3, "مریخ", "Mars", "المريخ", "فصل ۳: سیاره سرخ و پایگاه ستاره‌زادگان", "images/backgrounds/mars_background.png", 0xFF9A3412, 0xFF280D09, 0xFF5C1D12, 0xFFF97316, 0.39f, "stage3", "videos/mars_to_saturn.mp4"),
         PlanetChapter(4, "زحل", "Saturn", "زحل", "فصل ۴: پژوهش علمی و برافراشتن پرچم", "images/backgrounds/saturn_background.png", 0xFF78350F, 0xFF1E140B, 0xFF452E15, 0xFFFFB300, 0.44f, "stage5", "videos/saturn_to_jupiter.mp4"),
         PlanetChapter(5, "مشتری", "Jupiter", "المشتري", "فصل ۵: توفان‌های مغناطیسی و کمین ناوگان", "images/backgrounds/jupiter_background.png", 0xFF7C2D12, 0xFF1E1024, 0xFF4C2233, 0xFFFB923C, 0.52f, "stage6", "videos/jupiter_to_mercury.mp4"),
-        PlanetChapter(6, "عطارد", "Mercury", "عطارد", "فصل ۶: نورپردازی تاریک و دوراهی خیانت", "images/backgrounds/mercury_background.png", 0xFF1E293B, 0xFF030712, 0xFF0F2429, 0xFF00FFC3, 0.38f, "stage9", null),
-        PlanetChapter(7, "اورانوس", "Uranus", "أورانوس", "فصل ۷: میدان‌های یخی و پهپادهای تقسیم‌شونده", "images/backgrounds/space_station.png", 0xFF155E75, 0xFF061B26, 0xFF0E3B4F, 0xFF22D3EE, 0.40f, "stage7", null),
-        PlanetChapter(8, "نپتون", "Neptune", "نبتون", "فصل ۸: طوفان‌های آبی و آزادسازی گروگان‌ها", "images/backgrounds/alien_base_under_attack.jpg", 0xFF1E3A8A, 0xFF070F2B, 0xFF172B66, 0xFF60A5FA, 0.45f, "stage8", null),
-        PlanetChapter(9, "قلعه ستاره‌زادگان", "Starspawn Citadel", "قلعة النجوم", "فصل ۹: نفوذ به ناو فرماندهی بیگانگان", "images/backgrounds/rocket_interior.jpg", 0xFF4C1D95, 0xFF130726, 0xFF2E1065, 0xFFA78BFA, 0.46f, "boss", null),
-        PlanetChapter(10, "بازگشت به زمین", "Return to Earth", "العودة إلى الأرض", "فصل ۱۰: نبرد نهایی و ورود به جو زمین", "images/backgrounds/iran.png", 0xFF065F46, 0xFF031418, 0xFF0B3B3C, 0xFF10B981, 0.45f, "boss", null)
+        PlanetChapter(6, "عطارد", "Mercury", "عطارد", "فصل ۶: نورپردازی تاریک و دوراهی خیانت", "images/backgrounds/mercury_background.png", 0xFF1E293B, 0xFF030712, 0xFF0F2429, 0xFF00FFC3, 0.38f, "stage9", "videos/mercury_to_uranus.mp4"),
+        PlanetChapter(7, "اورانوس", "Uranus", "أورانوس", "فصل ۷: میدان‌های یخی و پهپادهای تقسیم‌شونده", "images/backgrounds/space_station.png", 0xFF155E75, 0xFF061B26, 0xFF0E3B4F, 0xFF22D3EE, 0.40f, "stage7", "videos/uranus_to_neptune.mp4"),
+        PlanetChapter(8, "نپتون", "Neptune", "نبتون", "فصل ۸: طوفان‌های آبی و آزادسازی گروگان‌ها", "images/backgrounds/alien_base_under_attack.jpg", 0xFF1E3A8A, 0xFF070F2B, 0xFF172B66, 0xFF60A5FA, 0.45f, "stage8", "videos/neptune_to_citadel.mp4"),
+        PlanetChapter(9, "قلعه ستاره‌زادگان", "Starspawn Citadel", "قلعة النجوم", "فصل ۹: نفوذ به ناو فرماندهی بیگانگان", "images/backgrounds/rocket_interior.jpg", 0xFF4C1D95, 0xFF130726, 0xFF2E1065, 0xFFA78BFA, 0.46f, "boss", "videos/citadel_to_earth.mp4"),
+        PlanetChapter(10, "بازگشت به زمین", "Return to Earth", "العودة إلى الأرض", "فصل ۱۰: نبرد نهایی و ورود به جو زمین", "images/backgrounds/iran.png", 0xFF065F46, 0xFF031418, 0xFF0B3B3C, 0xFF10B981, 0.45f, "boss", "videos/earth_return.mp4")
     )
 
-    // 10 chapters * 10 stages = 100 handcrafted-parameterized stages
+    // 10 chapters * 5 stages = 50 distinct stages
     val allStages: List<StageDefinition> by lazy {
-        val list = ArrayList<StageDefinition>(100)
-        for (chapterIdx in 1..10) {
+        val list = ArrayList<StageDefinition>(TOTAL_STAGES)
+        for (chapterIdx in 1..TOTAL_CHAPTERS) {
             val chapter = chapters[chapterIdx - 1]
-            for (sub in 1..10) {
-                val num = (chapterIdx - 1) * 10 + sub
-                val isBoss = sub == 10
-                val isDark = (chapterIdx == 6 && sub >= 3) || (chapterIdx == 9 && sub in 4..9)
-                val isBetrayalStage = (num == 60 || num == 59)
-                val objective = when {
-                    isBoss -> MissionObjective.BOSS_BATTLE
-                    sub == 5 && chapterIdx == 4 -> MissionObjective.STORY_EXPEDITION
-                    sub % 4 == 1 -> MissionObjective.OXYGEN_AND_PART
-                    sub % 4 == 2 -> MissionObjective.DEFEND_STATION
-                    sub % 4 == 3 -> MissionObjective.RESCUE_HOSTAGES
-                    else -> MissionObjective.ALIEN_PURGE
+            for (sub in 1..STAGES_PER_CHAPTER) {
+                val num = (chapterIdx - 1) * STAGES_PER_CHAPTER + sub
+                val isBoss = sub == STAGES_PER_CHAPTER
+                val isDark = (chapterIdx == 6 && sub >= 2) || (chapterIdx == 9 && sub in 2..4)
+                val isBetrayalStage = (num == 29 || num == 30)
+                val objective = when (sub) {
+                    1 -> MissionObjective.OXYGEN_AND_PART
+                    2 -> MissionObjective.DEFEND_STATION
+                    3 -> MissionObjective.RESCUE_HOSTAGES
+                    4 -> if (chapterIdx == 4) MissionObjective.STORY_EXPEDITION else MissionObjective.ALIEN_PURGE
+                    else -> MissionObjective.BOSS_BATTLE
                 }
 
                 val enemies = when (chapterIdx) {
@@ -200,37 +201,53 @@ object GameCatalog {
                     else -> listOf(EnemyKind.ALIEN_SOLDIER, EnemyKind.FLYER, EnemyKind.SPLITTER, EnemyKind.ALIEN_SHIP)
                 }
 
+                val sectorLabelFa = when (sub) {
+                    1 -> "بازیابی اکسیژن"
+                    2 -> "دفاع از پایگاه"
+                    3 -> "نجات هم‌تیمی‌ها"
+                    4 -> if (chapterIdx == 4) "پژوهش و پرچم" else "پاک‌سازی منطقه"
+                    else -> "باس ${chapter.nameFa}"
+                }
+                val sectorLabelEn = when (sub) {
+                    1 -> "Oxygen"
+                    2 -> "Defend"
+                    3 -> "Rescue"
+                    4 -> if (chapterIdx == 4) "Science" else "Purge"
+                    else -> "Boss"
+                }
+
                 val briefing = when {
                     num == 1 -> "موشک آسیب دیده! ابتدا تفنگ را بردار، با شکار بیگانه‌ها ۲ باتری اکسیژن جمع کن و سپس قطعه گمشده موشک را بیاب."
                     isBetrayalStage -> "تاریکی عطارد ناگهانی است! با نور چراغ‌قوه پیش برو، XP کسب کن و در پایان مسیر تصمیم سرنوشت‌ساز خود را بگیر."
-                    isBoss -> "فرمانده ناوگان بیگانگان در ${chapter.nameFa} ظاهر شده است! سپرها را بشکن و با هم‌تیمی‌ها باس فصل را شکست بده."
-                    objective == MissionObjective.OXYGEN_AND_PART -> "مأموریت ${chapter.nameFa}: جمع‌آوری باتری اکسیژن و بازیابی قطعه سفینه پیش از پایان زمان."
-                    objective == MissionObjective.RESCUE_HOSTAGES -> "مأموریت ${chapter.nameFa}: پاک‌سازی نگهبانان و آزادسازی فضانوردان اسیر."
-                    objective == MissionObjective.DEFEND_STATION -> "مأموریت ${chapter.nameFa}: دفع موج هجوم دشمنان و حفاظت از سامانه دفاعی."
-                    else -> "مأموریت ${chapter.nameFa}: نابودی نیروهای پیشرو و پیشروی به سوی پایگاه بعدی."
+                    isBoss -> "فرمانده ناوگان بیگانگان در ${chapter.nameFa} ظاهر شده است! سپرها را بشکن و با شکست باس، ویدئوی انتقال به فصل بعد را باز کن."
+                    objective == MissionObjective.OXYGEN_AND_PART -> "مأموریت ${chapter.nameFa} (مرحله $num): جمع‌آوری باتری اکسیژن و بازیابی قطعه سفینه پیش از پایان زمان."
+                    objective == MissionObjective.RESCUE_HOSTAGES -> "مأموریت ${chapter.nameFa} (مرحله $num): پاک‌سازی نگهبانان و آزادسازی فضانوردان اسیر."
+                    objective == MissionObjective.DEFEND_STATION -> "مأموریت ${chapter.nameFa} (مرحله $num): دفع موج هجوم دشمنان و حفاظت از سامانه دفاعی."
+                    objective == MissionObjective.STORY_EXPEDITION -> "مأموریت ویژه زحل (مرحله $num): کاوش علمی حلقه‌ها و بازیابی قطعه ناوبری."
+                    else -> "مأموریت ${chapter.nameFa} (مرحله $num): نابودی نیروهای پیشرو و پیشروی به سوی پایگاه بعدی."
                 }
 
                 list.add(
                     StageDefinition(
                         stageNumber = num,
                         chapterIndex = chapterIdx,
-                        titleFa = if (isBoss) "باس ${chapter.nameFa}" else "${chapter.nameFa} • بخش $sub",
-                        titleEn = if (isBoss) "${chapter.nameEn} Boss" else "${chapter.nameEn} • S$sub",
+                        titleFa = if (isBoss) "باس ${chapter.nameFa}" else "${chapter.nameFa} • $sectorLabelFa",
+                        titleEn = "${chapter.nameEn} • $sectorLabelEn",
                         briefingFa = briefing,
                         objective = objective,
                         targetBatteries = if (objective == MissionObjective.OXYGEN_AND_PART) 2 + (chapterIdx / 3) else 0,
-                        targetEnemies = if (isBoss) 3 + (chapterIdx / 2) else 4 + sub + (chapterIdx * 2),
+                        targetEnemies = if (isBoss) 3 + (chapterIdx / 2) else 4 + sub * 2 + (chapterIdx * 2),
                         timeLimitSeconds = 180 + chapterIdx * 15,
-                        worldWidth = 2800f + sub * 200f,
+                        worldWidth = 2700f + sub * 280f + chapterIdx * 50f,
                         hasDynamicDarkness = isDark,
                         hasBetrayalChoice = isBetrayalStage,
                         hasBoss = isBoss,
                         enemyPool = enemies,
-                        rewardXp = 80 + num * 12 + if (isBoss) 250 else 0,
-                        rewardCrystals = 40 + num * 5 + if (isBoss) 150 else 0,
+                        rewardXp = 90 + num * 18 + if (isBoss) 250 else 0,
+                        rewardCrystals = 45 + num * 8 + if (isBoss) 150 else 0,
                         bgAssetPath = chapter.bgAssetPath,
                         musicKey = if (isBoss) "boss" else chapter.musicKey,
-                        transitionVideoAsset = if (sub == 10) chapter.transitionVideoAsset else null
+                        transitionVideoAsset = if (sub == STAGES_PER_CHAPTER) chapter.transitionVideoAsset else null
                     )
                 )
             }

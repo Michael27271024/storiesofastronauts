@@ -369,14 +369,14 @@ private fun CinematicTrailerView(
         listOf(
             "JUNE 21, 2025 — FOUR HEROES LAUNCHED BEYOND EARTH",
             "AMBUSHED ON THE MOON — COLLECT OXYGEN & REBUILD THE SHIP",
-            "10 PLANETS, 100 STAGES, 8 HEROES & DEADLY STELLAR BOSSES",
+            "10 PLANETS, 50 STAGES, 8 HEROES & DEADLY STELLAR BOSSES",
             "STORY CAMPAIGN, ENDLESS SURVIVAL & AI SQUAD DUEL!"
         )
     } else {
         listOf(
             "۲۱ ژوئن ۲۰۲۵ — پرتاب چهار فضانورد دلیر به اعماق منظومه شمسی",
             "حمله ناگهانی ستاره‌زادگان — جمع‌آوری اکسیژن و بازیابی قطعات سفینه",
-            "۱۰ سیاره، ۱۰۰ مرحله حماسی، ۸ قهرمان و باس‌های چندفاز کیهانی",
+            "۱۰ سیاره، ۵۰ مرحله متمایز، ۸ قهرمان و باس‌های چندفاز کیهانی",
             "حالت داستانی، موج بی‌پایان، چالش زمان‌دار و دوئل هوشمند!"
         )
     }

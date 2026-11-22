@@ -11,7 +11,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 class NativeBitmapRegistry(context: Context) {
     private val assetManager = context.applicationContext.assets
 
-    // Bounded LRU cache to prevent OOM & memory leaks across 100 stages
+    // Bounded LRU cache to prevent OOM & memory leaks across 50 stages
     private val cache = object : LruCache<String, ImageBitmap>(64) {}
 
     fun assetExists(assetPath: String): Boolean = try {

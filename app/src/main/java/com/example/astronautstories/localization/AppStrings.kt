@@ -87,10 +87,10 @@ object StringProvider {
 
     private val persianStrings = GameStrings(
         appTitle = "داستان‌های فضانوردها",
-        storyIntro = "۴ فضانورد در ۲۱ ژوئن ۲۰۲۵ به فضا رفتند و پس از آسیب دیدن سفینه باید با عبور از ۱۰ سیاره و ۱۰۰ مرحله حماسی به زمین بازگردند.",
+        storyIntro = "۴ فضانورد در ۲۱ ژوئن ۲۰۲۵ به فضا رفتند و پس از آسیب دیدن سفینه باید با عبور از ۱۰ سیاره و ۵۰ مرحله حماسی به زمین بازگردند.",
         selectHero = "انتخاب فرمانده فضانورد",
         startMission = "شروع ماجراجویی",
-        storyMode = "حالت داستانی (۱۰۰ مرحله)",
+        storyMode = "حالت داستانی (۵۰ مرحله)",
         endlessMode = "بقا و موج بی‌پایان",
         challengeMode = "چالش زمان‌دار",
         multiplayerMode = "دوئل تیمی هوشمند",
@@ -152,10 +152,10 @@ object StringProvider {
 
     private val englishStrings = GameStrings(
         appTitle = "Astronaut Stories",
-        storyIntro = "On June 21, 2025, four astronauts ventured into deep space. After their ship broke apart, they must conquer 10 planets and 100 stages to return to Earth.",
+        storyIntro = "On June 21, 2025, four astronauts ventured into deep space. After their ship broke apart, they must conquer 10 planets and 50 stages to return to Earth.",
         selectHero = "Select Your Astronaut",
         startMission = "Launch Adventure",
-        storyMode = "Story Mode (100 Stages)",
+        storyMode = "Story Mode (50 Stages)",
         endlessMode = "Endless Survival",
         challengeMode = "Timed Blitz Challenge",
         multiplayerMode = "AI Squad Duel",
@@ -217,10 +217,10 @@ object StringProvider {
 
     private val arabicStrings = GameStrings(
         appTitle = "قصص رواد الفضاء",
-        storyIntro = "انطلق ٤ رواد فضاء في ٢١ يونيو ٢٠٢٥، وبعد تعطل سفينتهم يجب عليهم اجتياز ١٠ كواكب و١٠٠ مرحلة للعودة إلى الأرض.",
+        storyIntro = "انطلق ٤ رواد فضاء في ٢١ يونيو ٢٠٢٥، وبعد تعطل سفينتهم يجب عليهم اجتياز ١٠ كواكب و٥٠ مرحلة للعودة إلى الأرض.",
         selectHero = "اختر رائد الفضاء",
         startMission = "بدء المغامرة",
-        storyMode = "وضع القصة (١٠٠ مرحلة)",
+        storyMode = "وضع القصة (٥٠ مرحلة)",
         endlessMode = "البقاء اللانهائي",
         challengeMode = "التحدي الموقوت",
         multiplayerMode = "مبارزة الذكاء الاصطناعي",
