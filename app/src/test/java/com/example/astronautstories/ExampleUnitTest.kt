@@ -196,4 +196,48 @@ class ExampleUnitTest {
         assertEquals(stage1.targetBatteries, sim.player.batteries)
         assertTrue(sim.pickups.any { it.kind == com.example.astronautstories.engine.PickupKind.ROCKET_PART })
     }
+
+    @Test
+    fun playerInitialAndMaxHealth_isAtLeastFiveAcrossStagesAndHeroes() {
+        HeroId.entries.forEach { hero ->
+            assertTrue("Hero ${hero.id} bonusHp must be at least 5", hero.bonusHp >= 5)
+            val sim = GameSimulation(
+                mode = GameMode.STORY,
+                stageDef = GameCatalog.getStage(1),
+                hero = hero,
+                weapon = WeaponType.STANDARD_BLASTER,
+                skillLevels = emptyMap(),
+                graphicsQuality = GraphicsQuality.MEDIUM,
+                onSfx = {}
+            )
+            val snap = sim.buildSnapshot()
+            assertTrue(snap.health >= 5)
+            assertTrue(snap.maxHealth >= 5)
+            assertEquals(snap.maxHealth, snap.health)
+        }
+
+        val kouroshStage1 = GameSimulation(
+            mode = GameMode.STORY,
+            stageDef = GameCatalog.getStage(1),
+            hero = HeroId.KOUROSH,
+            weapon = WeaponType.STANDARD_BLASTER,
+            skillLevels = emptyMap(),
+            graphicsQuality = GraphicsQuality.MEDIUM,
+            onSfx = {}
+        )
+        assertEquals(5, kouroshStage1.player.health)
+        assertEquals(5, kouroshStage1.player.maxHealth)
+
+        val kouroshStage2 = GameSimulation(
+            mode = GameMode.STORY,
+            stageDef = GameCatalog.getStage(2),
+            hero = HeroId.KOUROSH,
+            weapon = WeaponType.STANDARD_BLASTER,
+            skillLevels = emptyMap(),
+            graphicsQuality = GraphicsQuality.MEDIUM,
+            onSfx = {}
+        )
+        assertEquals(5, kouroshStage2.player.health)
+        assertEquals(5, kouroshStage2.player.maxHealth)
+    }
 }

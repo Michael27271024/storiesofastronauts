@@ -71,9 +71,9 @@ enum class HeroId(
     val unlockCost: Int,
     val accentColor: Long
 ) {
-    KOUROSH("kourosh", "کوروش", "Kourosh", "كورش", "فرمانده تیم و کاوشگر", "Squad Commander", 1.05f, 4, 0, 0xFF00D9FF),
+    KOUROSH("kourosh", "کوروش", "Kourosh", "كورش", "فرمانده تیم و کاوشگر", "Squad Commander", 1.05f, 5, 0, 0xFF00D9FF),
     DARIUSH("dariush", "داریوش", "Dariush", "داريوش", "متخصص تسلیحات", "Weapons Specialist", 1.0f, 5, 0, 0xFFFFB300),
-    SOHRAB("sohrab", "سهراب", "Sohrab", "سهراب", "مهندس پیشرانه و تعمیرات", "Propulsion Engineer", 1.15f, 4, 0, 0xFF10B981),
+    SOHRAB("sohrab", "سهراب", "Sohrab", "سهراب", "مهندس پیشرانه و تعمیرات", "Propulsion Engineer", 1.15f, 5, 0, 0xFF10B981),
     ROSTAM("rostam", "رستم", "Rostam", "رستم", "تکاور خط مقدم", "Vanguard Trooper", 1.0f, 6, 0, 0xFFFF4D6D),
     ARASH("arash", "آرش", "Arash", "آرش", "تک‌تیرانداز مداری", "Orbital Marksman", 1.12f, 5, 350, 0xFFA78BFA),
     ATOUSA("atousa", "آتوسا", "Atousa", "أتوسا", "مهندس سپر انرژی", "Shield Architect", 1.10f, 6, 500, 0xFF38BDF8),

@@ -243,7 +243,7 @@ class GameSimulation(
     }
 
     private fun setupWorld() {
-        val baseHp = hero.bonusHp + armorSkill + bonusMedkits
+        val baseHp = maxOf(5, hero.bonusHp) + armorSkill + bonusMedkits
         player.maxHealth = baseHp
         player.health = baseHp
         player.maxShield = 2 + oxygenSkill

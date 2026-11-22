@@ -123,7 +123,8 @@ fun GameArenaScreen(
     val transitionGuard = remember(mode, stageNumber, sessionId) { AtomicBoolean(false) }
     val nextNavigateGuard = remember(mode, stageNumber, sessionId) { AtomicBoolean(false) }
 
-    val sim = arenaViewModel.simulation
+    val simState by arenaViewModel.simulationState.collectAsStateWithLifecycle()
+    val sim = simState
     val sessionMatchesTarget = isReady &&
         sim != null &&
         sim.mode == mode &&
@@ -237,7 +238,7 @@ fun GameArenaScreen(
         return
     }
 
-    if (!sessionMatchesTarget || sim == null) {
+    if (!sessionMatchesTarget) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -248,6 +249,7 @@ fun GameArenaScreen(
         }
         return
     }
+    val activeSim = sim ?: return
 
     Box(
         modifier = Modifier
@@ -259,7 +261,7 @@ fun GameArenaScreen(
     ) {
         // 60 FPS Horizontal Side-Scrolling Canvas World
         GameCanvasView(
-            sim = sim,
+            sim = activeSim,
             frameTick = frameTick,
             bitmapRegistry = bitmapRegistry,
             modifier = Modifier.fillMaxSize()
@@ -560,13 +562,13 @@ fun GameArenaScreen(
                         sizeDp = 50.dp
                     )
                     Text(
-                        text = if (settings.language == AppLanguage.ENGLISH) sim.stageDef.titleEn else sim.stageDef.titleFa,
+                        text = if (settings.language == AppLanguage.ENGLISH) activeSim.stageDef.titleEn else activeSim.stageDef.titleFa,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        text = sim.stageDef.briefingFa,
+                        text = activeSim.stageDef.briefingFa,
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 16.sp),
                         textAlign = TextAlign.Center
                     )
@@ -599,7 +601,7 @@ fun GameArenaScreen(
                         Text(strings.resumeBtn)
                     }
                     FilledTonalButton(
-                        onClick = { arenaViewModel.startSession(mode, stageNumber, ownerToken) },
+                        onClick = { arenaViewModel.restartSession(mode, stageNumber, ownerToken) },
                         modifier = Modifier.fillMaxWidth().height(48.dp).testTag("arena_restart_button")
                     ) {
                         Text(strings.restartBtn)
@@ -661,7 +663,7 @@ fun GameArenaScreen(
                 val isAutoStoryTransition = won &&
                     mode == GameMode.STORY &&
                     transitionState != StoryTransitionState.FINISHED_FINALE &&
-                    (stageNumber < GameCatalog.TOTAL_STAGES || sim.stageDef.transitionVideoAsset != null)
+                    (stageNumber < GameCatalog.TOTAL_STAGES || activeSim.stageDef.transitionVideoAsset != null)
 
                 ArenaModalCard {
                     if (won) {
@@ -716,7 +718,7 @@ fun GameArenaScreen(
                     )
 
                     if (isAutoStoryTransition) {
-                        val hasVideo = sim.stageDef.transitionVideoAsset?.let { bitmapRegistry.assetExists(it) } == true
+                        val hasVideo = activeSim.stageDef.transitionVideoAsset?.let { bitmapRegistry.assetExists(it) } == true
                         Surface(
                             color = MaterialTheme.colorScheme.primaryContainer,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
@@ -734,7 +736,7 @@ fun GameArenaScreen(
                         }
                     } else {
                         FilledTonalButton(
-                            onClick = { arenaViewModel.startSession(mode, stageNumber, ownerToken) },
+                            onClick = { arenaViewModel.restartSession(mode, stageNumber, ownerToken) },
                             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("arena_retry_button")
                         ) {
                             Text(strings.retryBtn)

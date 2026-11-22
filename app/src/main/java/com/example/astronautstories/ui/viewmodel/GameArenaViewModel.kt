@@ -28,8 +28,9 @@ class GameArenaViewModel(
     private val container: AppContainer
 ) : ViewModel() {
 
-    private var _simulation: GameSimulation? = null
-    val simulation: GameSimulation? get() = _simulation
+    private val _simulationState = MutableStateFlow<GameSimulation?>(null)
+    val simulationState: StateFlow<GameSimulation?> = _simulationState.asStateFlow()
+    val simulation: GameSimulation? get() = _simulationState.value
 
     private val _hud = MutableStateFlow(HudSnapshot())
     val hud: StateFlow<HudSnapshot> = _hud.asStateFlow()
@@ -82,7 +83,7 @@ class GameArenaViewModel(
         _outcomeSaved.value = false
         _isPaused.value = false
         _isReady.value = false
-        _simulation = null
+        _simulationState.value = null
         _hud.value = HudSnapshot(
             mode = mode,
             stageNumber = clampedStage,
@@ -133,7 +134,7 @@ class GameArenaViewModel(
                 bonusShield = bonusShield,
                 onSfx = { key -> container.audioEngine.playSfx(key) }
             )
-            _simulation = sim
+            _simulationState.value = sim
             _hud.value = sim.buildSnapshot()
             _isReady.value = true
 
@@ -141,6 +142,54 @@ class GameArenaViewModel(
             container.audioEngine.playTheme(stageDef.musicKey, loop = true)
             runGameLoop(nextSessionId)
         }
+    }
+
+    fun restartSession(mode: GameMode, stageNumber: Int, ownerToken: Long? = null) {
+        if (ownerToken != null) {
+            activeOwnerToken = ownerToken
+        }
+
+        val clampedStage = stageNumber.coerceIn(1, GameCatalog.TOTAL_STAGES)
+        val currentSim = _simulationState.value
+        if (currentSim == null || currentSim.mode != mode || currentSim.stageDef.stageNumber != clampedStage) {
+            startSession(mode, clampedStage, ownerToken)
+            return
+        }
+
+        startJob?.cancel()
+        loopJob?.cancel()
+        outcomeJob?.cancel()
+
+        val nextSessionId = _sessionId.value + 1L
+        _sessionId.value = nextSessionId
+        matchResultRecorded = false
+        _outcomeSaved.value = false
+        _isPaused.value = false
+        resetInputs()
+
+        val stageDef = GameCatalog.getStage(clampedStage)
+        val freshSim = GameSimulation(
+            mode = mode,
+            stageDef = stageDef,
+            hero = currentSim.hero,
+            weapon = currentSim.weapon,
+            skillLevels = currentSim.skillLevels,
+            graphicsQuality = currentSim.graphicsQuality,
+            bonusMedkits = currentSim.bonusMedkits,
+            bonusAmmo = currentSim.bonusAmmo,
+            bonusShield = currentSim.bonusShield,
+            onSfx = { key -> container.audioEngine.playSfx(key) }
+        )
+
+        _simulationState.value = freshSim
+        _hud.value = freshSim.buildSnapshot()
+        _frameTick.value = _frameTick.value + 1L
+        _isReady.value = true
+
+        container.audioEngine.playSfx("click")
+        container.audioEngine.onResumeLifecycle()
+        container.audioEngine.playTheme(stageDef.musicKey, loop = true)
+        runGameLoop(nextSessionId)
     }
 
     private fun runGameLoop(activeSessionId: Long) {
@@ -155,7 +204,7 @@ class GameArenaViewModel(
                 val dt = ((nowNs - lastNs) / 1_000_000_000f).coerceIn(0.008f, 0.045f)
                 lastNs = nowNs
 
-                val sim = _simulation ?: continue
+                val sim = _simulationState.value ?: continue
                 if (!_isPaused.value && sim.phase == ArenaPhase.PLAYING) {
                     val combined = mergeInputs()
                     try {
@@ -247,7 +296,7 @@ class GameArenaViewModel(
     }
 
     fun updateViewportSize(widthPx: Float, heightPx: Float) {
-        val sim = _simulation ?: return
+        val sim = _simulationState.value ?: return
         if (widthPx > 1f && heightPx > 1f) {
             val scale = (heightPx / sim.worldHeight).coerceAtLeast(0.1f)
             viewportWorldWidth = (widthPx / scale).coerceAtLeast(960f)
@@ -274,15 +323,19 @@ class GameArenaViewModel(
     fun startMissionFromBriefing() {
         resetInputs()
         _isPaused.value = false
-        _simulation?.startMission()
-        _simulation?.let { _hud.value = it.buildSnapshot() }
+        _simulationState.value?.let { sim ->
+            sim.startMission()
+            _hud.value = sim.buildSnapshot()
+        }
         container.audioEngine.playSfx("click")
     }
 
     fun resolveStoryChoice(betrayal: Boolean) {
         resetInputs()
-        _simulation?.resolveStoryChoice(betrayal)
-        _simulation?.let { _hud.value = it.buildSnapshot() }
+        _simulationState.value?.let { sim ->
+            sim.resolveStoryChoice(betrayal)
+            _hud.value = sim.buildSnapshot()
+        }
     }
 
     fun togglePause(paused: Boolean) {
