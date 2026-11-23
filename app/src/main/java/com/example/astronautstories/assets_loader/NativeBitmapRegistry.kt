@@ -15,9 +15,13 @@ class NativeBitmapRegistry(context: Context) {
     private val cache = object : LruCache<String, ImageBitmap>(64) {}
 
     fun assetExists(assetPath: String): Boolean = try {
-        assetManager.open(assetPath).use { true }
+        assetManager.openFd(assetPath).use { true }
     } catch (_: Exception) {
-        false
+        try {
+            assetManager.open(assetPath).use { true }
+        } catch (_: Exception) {
+            false
+        }
     }
 
     fun getBitmap(assetPath: String, maxDimension: Int = 512): ImageBitmap? {
