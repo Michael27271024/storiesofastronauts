@@ -16,6 +16,7 @@ class GameAudioEngine(context: Context) {
 
     private var mediaPlayer: MediaPlayer? = null
     private var currentThemeKey: String? = null
+    private var currentThemeLooping: Boolean = true
     @Volatile
     private var musicVolume: Float = 0.55f
     @Volatile
@@ -35,7 +36,7 @@ class GameAudioEngine(context: Context) {
                     .build()
             )
             .build()
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         Log.e("GameAudio", "Failed to build SoundPool: ${e.message}")
         @Suppress("DEPRECATION")
         SoundPool(10, android.media.AudioManager.STREAM_MUSIC, 0)
@@ -80,7 +81,7 @@ class GameAudioEngine(context: Context) {
     )
 
     init {
-        runCatching {
+        try {
             audioExecutor.execute {
                 sfxMap.forEach { (key, path) ->
                     if (isReleased) return@forEach
@@ -91,11 +92,12 @@ class GameAudioEngine(context: Context) {
                                 sfxIds[key] = id
                             }
                         }
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         Log.w("GameAudio", "Failed loading SFX $key: ${e.message}")
                     }
                 }
             }
+        } catch (_: Throwable) {
         }
     }
 
@@ -103,11 +105,13 @@ class GameAudioEngine(context: Context) {
         val old = mediaPlayer
         mediaPlayer = null
         if (old != null) {
-            runCatching { old.setOnErrorListener(null) }
-            runCatching { old.setOnCompletionListener(null) }
-            runCatching { if (old.isPlaying) old.stop() }
-            runCatching { old.reset() }
-            runCatching { old.release() }
+            try { old.setOnErrorListener(null) } catch (_: Throwable) {}
+            try { old.setOnCompletionListener(null) } catch (_: Throwable) {}
+            try {
+                if (old.isPlaying) old.stop()
+            } catch (_: Throwable) {}
+            try { old.reset() } catch (_: Throwable) {}
+            try { old.release() } catch (_: Throwable) {}
         }
     }
 
@@ -117,31 +121,35 @@ class GameAudioEngine(context: Context) {
         musicVolume = m
         sfxVolume = s
         if (isReleased) return
-        runCatching {
+        try {
             audioExecutor.execute {
                 synchronized(playerLock) {
                     if (isReleased) return@synchronized
-                    runCatching { mediaPlayer?.setVolume(m, m) }
+                    try {
+                        mediaPlayer?.setVolume(m, m)
+                    } catch (_: Throwable) {
+                    }
                 }
             }
+        } catch (_: Throwable) {
         }
     }
 
     fun playTheme(key: String, loop: Boolean = true) {
         if (isReleased) return
         val path = themeMap[key] ?: themeMap["ambient"] ?: return
-        runCatching {
+        try {
             audioExecutor.execute {
                 synchronized(playerLock) {
                     if (isReleased) return@synchronized
                     val existing = mediaPlayer
-                    if (currentThemeKey == key && existing != null) {
+                    if (currentThemeKey == key && currentThemeLooping == loop && existing != null) {
                         val resumedCleanly = try {
-                            if (!existing.isPlaying && !isPausedByLifecycle) {
+                            if (!existing.isPlaying && !isPausedByLifecycle && loop) {
                                 existing.start()
                             }
                             true
-                        } catch (_: Exception) {
+                        } catch (_: Throwable) {
                             false
                         }
                         if (resumedCleanly) return@synchronized
@@ -149,6 +157,7 @@ class GameAudioEngine(context: Context) {
                     }
 
                     currentThemeKey = key
+                    currentThemeLooping = loop
                     releaseMediaPlayerLocked()
 
                     var player: MediaPlayer? = null
@@ -169,6 +178,14 @@ class GameAudioEngine(context: Context) {
                                 }
                                 true
                             }
+                            setOnCompletionListener { mp ->
+                                synchronized(playerLock) {
+                                    if (mediaPlayer === mp && !currentThemeLooping) {
+                                        releaseMediaPlayerLocked()
+                                        currentThemeKey = null
+                                    }
+                                }
+                            }
                             assetManager.openFd(path).use { afd ->
                                 setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
                             }
@@ -180,17 +197,18 @@ class GameAudioEngine(context: Context) {
                             }
                         }
                         mediaPlayer = player
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         Log.w("GameAudio", "Failed playing music $key: ${e.message}")
                         if (player != null) {
-                            runCatching { player.reset() }
-                            runCatching { player.release() }
+                            try { player.reset() } catch (_: Throwable) {}
+                            try { player.release() } catch (_: Throwable) {}
                         }
                         mediaPlayer = null
                         currentThemeKey = null
                     }
                 }
             }
+        } catch (_: Throwable) {
         }
     }
 
@@ -199,7 +217,7 @@ class GameAudioEngine(context: Context) {
         val id = sfxIds[key] ?: return
         try {
             soundPool.play(id, sfxVolume, sfxVolume, 1, 0, rate)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w("GameAudio", "Failed playing sfx $key: ${e.message}")
         }
     }
@@ -207,48 +225,53 @@ class GameAudioEngine(context: Context) {
     fun onPauseLifecycle() {
         isPausedByLifecycle = true
         if (isReleased) return
-        runCatching {
+        try {
             audioExecutor.execute {
                 synchronized(playerLock) {
                     if (isReleased) return@synchronized
-                    runCatching {
+                    try {
                         if (mediaPlayer?.isPlaying == true) {
                             mediaPlayer?.pause()
                         }
+                    } catch (_: Throwable) {
                     }
                 }
             }
+        } catch (_: Throwable) {
         }
     }
 
     fun onResumeLifecycle() {
         isPausedByLifecycle = false
         if (isReleased) return
-        runCatching {
+        try {
             audioExecutor.execute {
                 synchronized(playerLock) {
                     if (isReleased || isPausedByLifecycle) return@synchronized
-                    runCatching {
+                    try {
                         val mp = mediaPlayer
-                        if (mp != null && !mp.isPlaying) {
+                        if (mp != null && currentThemeLooping && !mp.isPlaying) {
                             mp.start()
                         }
+                    } catch (_: Throwable) {
                     }
                 }
             }
+        } catch (_: Throwable) {
         }
     }
 
     fun release() {
         isReleased = true
-        runCatching {
+        try {
             audioExecutor.execute {
                 synchronized(playerLock) {
                     releaseMediaPlayerLocked()
                     currentThemeKey = null
-                    runCatching { soundPool.release() }
+                    try { soundPool.release() } catch (_: Throwable) {}
                 }
             }
+        } catch (_: Throwable) {
         }
     }
 }

@@ -240,4 +240,63 @@ class ExampleUnitTest {
         assertEquals(5, kouroshStage2.player.health)
         assertEquals(5, kouroshStage2.player.maxHealth)
     }
+
+    @Test
+    fun stage5BossDefeat_triggersVictoryWithChapterVideoAndStage6Initializes() {
+        val stage5 = GameCatalog.getStage(5)
+        assertTrue(stage5.hasBoss)
+        assertEquals("videos/moon_to_mars.mp4", stage5.transitionVideoAsset)
+
+        val sim5 = GameSimulation(
+            mode = GameMode.STORY,
+            stageDef = stage5,
+            hero = HeroId.KOUROSH,
+            weapon = WeaponType.PHOTON_SNIPER,
+            skillLevels = emptyMap(),
+            graphicsQuality = GraphicsQuality.MEDIUM,
+            onSfx = { throw RuntimeException("Simulated audio failure must not crash victory") }
+        )
+        sim5.startMission()
+        assertEquals(ArenaPhase.PLAYING, sim5.phase)
+
+        val boss = sim5.enemies.first { it.kind == com.example.astronautstories.domain.model.EnemyKind.BOSS_OVERLORD }
+        boss.hp = 1
+        sim5.player.x = boss.x - 120f
+        sim5.cameraX = (boss.x - 300f).coerceAtLeast(0f)
+        sim5.bullets.add(
+            com.example.astronautstories.engine.BulletEntity(
+                x = boss.x + 10f,
+                y = boss.y + 10f,
+                vx = 0f,
+                vy = 0f,
+                width = 20f,
+                height = 20f,
+                damage = 5,
+                fromPlayer = true,
+                colorHex = 0xFFFFFFFFL
+            )
+        )
+
+        sim5.step(0.016f, InputControlsState(), 1280f)
+        val snap5 = sim5.buildSnapshot()
+        assertEquals(ArenaPhase.VICTORY, snap5.phase)
+        assertTrue(snap5.isVictory)
+        assertTrue(snap5.bossKilled)
+
+        val stage6 = GameCatalog.getStage(6)
+        assertEquals(2, stage6.chapterIndex)
+        val sim6 = GameSimulation(
+            mode = GameMode.STORY,
+            stageDef = stage6,
+            hero = HeroId.KOUROSH,
+            weapon = WeaponType.PHOTON_SNIPER,
+            skillLevels = emptyMap(),
+            graphicsQuality = GraphicsQuality.MEDIUM,
+            onSfx = {}
+        )
+        val snap6 = sim6.buildSnapshot()
+        assertEquals(6, snap6.stageNumber)
+        assertEquals(ArenaPhase.BRIEFING, snap6.phase)
+        assertTrue(snap6.health >= 5)
+    }
 }

@@ -335,6 +335,7 @@ class GameSimulation(
     }
 
     private fun spawnInitialWave() {
+        val pool = stageDef.enemyPool.ifEmpty { listOf(EnemyKind.ALIEN_SOLDIER) }
         val count = when (mode) {
             GameMode.ENDLESS -> 5 + wave * 2
             GameMode.CHALLENGE -> 10
@@ -343,7 +344,7 @@ class GameSimulation(
         val minSpawnX = 560f
         val maxSpawnX = (worldWidth - 220f).coerceAtLeast(700f)
         repeat(count) { i ->
-            val kind = stageDef.enemyPool[i % stageDef.enemyPool.size]
+            val kind = pool[i % pool.size]
             val spawnX = if (mode == GameMode.ENDLESS || mode == GameMode.CHALLENGE || mode == GameMode.MULTIPLAYER) {
                 worldWidth - 140f - Random.nextFloat() * 520f
             } else {
@@ -436,7 +437,7 @@ class GameSimulation(
     fun resolveStoryChoice(betrayal: Boolean) {
         betrayalChosen = betrayal
         phase = ArenaPhase.VICTORY
-        onSfx("rocket_launch")
+        safeSfx("rocket_launch")
     }
 
     fun step(dtRaw: Float, input: InputControlsState, viewportWorldWidth: Float) {
@@ -506,7 +507,7 @@ class GameSimulation(
             if (!player.isJumping) {
                 player.vy = -(560f + speedSkill * 20f)
                 player.isJumping = true
-                onSfx("jump")
+                safeSfx("jump")
             } else {
                 player.vy = (player.vy - 920f * dt).coerceAtLeast(-420f)
             }
@@ -553,7 +554,7 @@ class GameSimulation(
             fireCooldown = (weapon.fireRateMs / 1000f) * (1f - fireSkill * 0.05f)
             player.ammo--
             shotsFired++
-            onSfx("shoot")
+            safeSfx("shoot")
 
             val muzzleX = if (player.facingRight) player.x + player.width + 4f else player.x - 4f
             val muzzleY = player.y + player.height * 0.42f
@@ -592,7 +593,7 @@ class GameSimulation(
         // Special Shockwave Attack
         if (input.specialTrigger && player.specialCooldown <= 0f) {
             player.specialCooldown = 8.0f
-            onSfx("explosion")
+            safeSfx("explosion")
             spawnExplosion(player.x + player.width / 2f, player.y + player.height / 2f, hero.accentColor, 20)
             val defeated = mutableListOf<EnemyEntity>()
             val iter = enemies.iterator()
@@ -655,6 +656,7 @@ class GameSimulation(
 
             if (b.fromPlayer) {
                 var hit = false
+                var defeatedEnemy: EnemyEntity? = null
                 val eIter = enemies.iterator()
                 while (eIter.hasNext()) {
                     val e = eIter.next()
@@ -664,20 +666,23 @@ class GameSimulation(
                         e.hp -= b.damage
                         spawnExplosion(b.x, b.y, b.colorHex, 5)
                         if (e.kind == EnemyKind.BOSS_OVERLORD) {
-                            onSfx("boss_hit")
+                            safeSfx("boss_hit")
                             if (e.hp <= e.maxHp / 2 && e.phase == 1) {
                                 e.phase = 2
                                 showBanner("باس وارد فاز دوم شد! حملات لیزری شدیدتر می‌شوند!")
                             }
                         } else {
-                            onSfx("hit")
+                            safeSfx("hit")
                         }
                         if (e.hp <= 0) {
                             eIter.remove()
-                            onEnemyDefeated(e)
+                            defeatedEnemy = e
                         }
                         break
                     }
+                }
+                if (defeatedEnemy != null) {
+                    onEnemyDefeated(defeatedEnemy)
                 }
                 if (hit) bIter.remove()
             } else {
@@ -744,7 +749,7 @@ class GameSimulation(
     private fun onEnemyDefeated(e: EnemyEntity) {
         enemiesKilled++
         score += if (e.kind == EnemyKind.BOSS_OVERLORD) 850L else 120L
-        onSfx("enemy_die")
+        safeSfx("enemy_die")
         spawnExplosion(e.x + e.width / 2f, e.y + e.height / 2f, 0xFFC47B42, 14)
 
         if (e.kind == EnemyKind.SPLITTER) {
@@ -791,13 +796,13 @@ class GameSimulation(
                     PickupKind.GUN -> {
                         player.hasGun = true
                         player.ammo += 25
-                        onSfx("gun")
+                        safeSfx("gun")
                         showBanner("تفنگ لیزری برداشته شد! به سمت راست پیشروی کن و شلیک کن!")
                     }
                     PickupKind.BATTERY, PickupKind.POWERFUL_BATTERY -> {
                         player.batteries++
                         score += 100L
-                        onSfx("battery")
+                        safeSfx("battery")
                         if (stageDef.objective == MissionObjective.OXYGEN_AND_PART &&
                             player.batteries >= stageDef.targetBatteries && !partSpawned
                         ) {
@@ -809,7 +814,7 @@ class GameSimulation(
                     PickupKind.ROCKET_PART -> {
                         player.partsCollected++
                         score += 350L
-                        onSfx("part")
+                        safeSfx("part")
                         if (stageDef.hasBetrayalChoice && mode == GameMode.STORY) {
                             phase = ArenaPhase.STORY_CHOICE
                         } else {
@@ -818,21 +823,21 @@ class GameSimulation(
                     }
                     PickupKind.AMMO_PACK -> {
                         player.ammo += 20
-                        onSfx("powerup")
+                        safeSfx("powerup")
                     }
                     PickupKind.HEALTH_PACK -> {
                         player.health = (player.health + 2).coerceAtMost(player.maxHealth)
-                        onSfx("powerup")
+                        safeSfx("powerup")
                     }
                     PickupKind.HOSTAGE -> {
                         player.hostagesRescued++
                         score += 250L
-                        onSfx("part")
+                        safeSfx("part")
                         showBanner("یک فضانورد اسیر آزاد شد! (${player.hostagesRescued}/3)")
                     }
                     PickupKind.CRYSTAL -> {
                         score += 150L
-                        onSfx("battery")
+                        safeSfx("battery")
                     }
                 }
             }
@@ -878,7 +883,7 @@ class GameSimulation(
     private fun damagePlayer(amount: Int) {
         if (player.invulnTimer > 0f) return
         player.invulnTimer = 0.85f
-        onSfx("hit")
+        safeSfx("hit")
         spawnExplosion(player.x + player.width / 2f, player.y + player.height / 2f, 0xFFE05252, 8)
         if (player.shield > 0) {
             player.shield = (player.shield - amount).coerceAtLeast(0)
@@ -890,17 +895,24 @@ class GameSimulation(
         }
     }
 
+    private fun safeSfx(key: String) {
+        try {
+            onSfx(key)
+        } catch (_: Throwable) {
+        }
+    }
+
     private fun triggerVictory() {
         if (phase == ArenaPhase.VICTORY) return
         phase = ArenaPhase.VICTORY
-        onSfx("rocket_launch")
+        safeSfx("rocket_launch")
     }
 
     private fun triggerGameOver(reason: String) {
         if (phase == ArenaPhase.GAME_OVER) return
         statusBanner = reason
         phase = ArenaPhase.GAME_OVER
-        onSfx("explosion")
+        safeSfx("explosion")
     }
 
     private fun showBanner(msg: String) {

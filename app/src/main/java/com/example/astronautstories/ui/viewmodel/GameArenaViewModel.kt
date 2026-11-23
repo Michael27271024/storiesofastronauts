@@ -209,7 +209,7 @@ class GameArenaViewModel(
                     val combined = mergeInputs()
                     try {
                         sim.step(dt, combined, viewportWorldWidth)
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         Log.e("GameArenaVM", "Simulation step error", e)
                     }
 
@@ -219,7 +219,7 @@ class GameArenaViewModel(
 
                 val snap = try {
                     sim.buildSnapshot()
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     Log.e("GameArenaVM", "Snapshot build error", e)
                     HudSnapshot(mode = sim.mode, stageNumber = sim.stageDef.stageNumber)
                 }
@@ -229,7 +229,6 @@ class GameArenaViewModel(
                 if ((snap.phase == ArenaPhase.VICTORY || snap.phase == ArenaPhase.GAME_OVER) && !matchResultRecorded) {
                     matchResultRecorded = true
                     resetInputs()
-                    loopJob?.cancel()
                     persistMatchOutcome(sim, snap, activeSessionId)
                     break
                 }
@@ -241,8 +240,11 @@ class GameArenaViewModel(
         outcomeJob?.cancel()
         outcomeJob = viewModelScope.launch {
             try {
-                withTimeoutOrNull(2200L) {
+                try {
                     container.audioEngine.playTheme(if (snap.isVictory) "victory" else "game_over", loop = false)
+                } catch (_: Throwable) {
+                }
+                withTimeoutOrNull(2200L) {
                     val settings = container.settingsRepository.settingsFlow.first()
                     container.gameRepository.recordMatchResult(
                         mode = sim.mode,
@@ -262,7 +264,7 @@ class GameArenaViewModel(
                         playerDisplayName = settings.playerDisplayName
                     )
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.w("GameArenaVM", "Outcome save error: ${e.message}")
             } finally {
                 if (_sessionId.value == activeSessionId) {

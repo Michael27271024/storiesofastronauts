@@ -134,12 +134,14 @@ fun GameArenaScreen(
 
     fun completeStoryStageTransition() {
         activeTransitionVideo = null
-        arenaViewModel.setAudioMutedForCutscene(false, ownerToken)
-        arenaViewModel.resetInputs()
+        runCatching { arenaViewModel.setAudioMutedForCutscene(false, ownerToken) }
+        runCatching { arenaViewModel.resetInputs() }
         if (stageNumber < GameCatalog.TOTAL_STAGES) {
             transitionState = StoryTransitionState.NAVIGATING_NEXT
             if (nextNavigateGuard.compareAndSet(false, true)) {
-                onNavigateNextStage((stageNumber + 1).coerceAtMost(GameCatalog.TOTAL_STAGES))
+                runCatching {
+                    onNavigateNextStage((stageNumber + 1).coerceAtMost(GameCatalog.TOTAL_STAGES))
+                }
             }
         } else {
             transitionState = StoryTransitionState.FINISHED_FINALE
@@ -152,18 +154,18 @@ fun GameArenaScreen(
 
     DisposableEffect(ownerToken) {
         onDispose {
-            arenaViewModel.setAudioMutedForCutscene(false, ownerToken)
-            arenaViewModel.stopSessionIfOwner(ownerToken)
+            runCatching { arenaViewModel.setAudioMutedForCutscene(false, ownerToken) }
+            runCatching { arenaViewModel.stopSessionIfOwner(ownerToken) }
         }
     }
 
     DisposableEffect(activeTransitionVideo, ownerToken) {
         if (activeTransitionVideo != null) {
-            arenaViewModel.setAudioMutedForCutscene(true, ownerToken)
+            runCatching { arenaViewModel.setAudioMutedForCutscene(true, ownerToken) }
         }
         onDispose {
             if (activeTransitionVideo != null) {
-                arenaViewModel.setAudioMutedForCutscene(false, ownerToken)
+                runCatching { arenaViewModel.setAudioMutedForCutscene(false, ownerToken) }
             }
         }
     }
@@ -186,7 +188,10 @@ fun GameArenaScreen(
             } else {
                 GameCatalog.getStage(stageNumber).transitionVideoAsset
             }
-            if (!video.isNullOrBlank() && bitmapRegistry.assetExists(video)) {
+            val videoExists = !video.isNullOrBlank() && runCatching {
+                bitmapRegistry.assetExists(video)
+            }.getOrDefault(false)
+            if (videoExists) {
                 transitionState = StoryTransitionState.PLAYING_VIDEO
                 activeTransitionVideo = video
             } else {
@@ -205,7 +210,9 @@ fun GameArenaScreen(
             StoryTransitionState.NAVIGATING_NEXT -> {
                 delay(1200L)
                 if (stageNumber < GameCatalog.TOTAL_STAGES) {
-                    onNavigateNextStage((stageNumber + 1).coerceAtMost(GameCatalog.TOTAL_STAGES))
+                    runCatching {
+                        onNavigateNextStage((stageNumber + 1).coerceAtMost(GameCatalog.TOTAL_STAGES))
+                    }
                 } else {
                     transitionState = StoryTransitionState.FINISHED_FINALE
                 }
@@ -216,8 +223,10 @@ fun GameArenaScreen(
 
     BackHandler {
         when {
-            transitionState == StoryTransitionState.PLAYING_VIDEO || activeTransitionVideo != null -> {
-                // Wait for active cutscene playback (watchdog guarantees completion)
+            transitionState == StoryTransitionState.PLAYING_VIDEO ||
+                transitionState == StoryTransitionState.NAVIGATING_NEXT ||
+                activeTransitionVideo != null -> {
+                // Wait for active cutscene playback or stage navigation
             }
             sessionMatchesTarget && hud.phase == ArenaPhase.PLAYING -> {
                 arenaViewModel.togglePause(!isPaused)
@@ -234,6 +243,15 @@ fun GameArenaScreen(
             assetPath = currentVideo,
             statusLabel = strings.autoVideoStatusLabel,
             onCompleted = { completeStoryStageTransition() }
+        )
+        return
+    }
+
+    if (transitionState == StoryTransitionState.NAVIGATING_NEXT) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF010101))
         )
         return
     }
