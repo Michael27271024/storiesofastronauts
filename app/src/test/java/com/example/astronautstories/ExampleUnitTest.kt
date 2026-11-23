@@ -386,4 +386,21 @@ class ExampleUnitTest {
         assertEquals(1, boss.phase)
         assertEquals(0, snap.bossHp)
     }
+
+    @Test
+    fun chapterTransitionVideoFiles_existAndAreNonEmptyOnDisk() {
+        val assetRoots = listOf(
+            java.io.File("src/main/assets"),
+            java.io.File("app/src/main/assets")
+        )
+        val assetsDir = assetRoots.firstOrNull { it.exists() && it.isDirectory }
+        if (assetsDir != null) {
+            GameCatalog.chapters.forEach { chapter ->
+                val relPath = chapter.transitionVideoAsset.trimStart('/')
+                val videoFile = java.io.File(assetsDir, relPath)
+                assertTrue("Missing transition video for chapter ${chapter.chapterIndex}: ${videoFile.path}", videoFile.exists())
+                assertTrue("Empty transition video for chapter ${chapter.chapterIndex}: ${videoFile.path}", videoFile.length() > 1024L)
+            }
+        }
+    }
 }

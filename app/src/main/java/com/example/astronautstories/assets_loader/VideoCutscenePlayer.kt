@@ -1,30 +1,35 @@
 package com.example.astronautstories.assets_loader
 
 import android.content.Context
-import android.graphics.Matrix
-import android.graphics.SurfaceTexture
-import android.media.AudioAttributes
-import android.media.MediaPlayer
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
-import android.view.Surface
-import android.view.TextureView
+import android.util.Log
+import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.annotation.OptIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface as ComposeSurface
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -37,41 +42,58 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
+import com.example.astronautstories.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
-private class CutscenePlayerHolder {
-    val lock = Any()
-    var mediaPlayer: MediaPlayer? = null
-    var surface: Surface? = null
-    var prepared: Boolean = false
-    var surfaceAttached: Boolean = false
-}
-
 /**
- * Crash-proof cutscene video player built on TextureView + Android MediaPlayer.
- * Attaches a valid Surface before starting playback, supports direct AssetFileDescriptor
- * playback with cached-file fallback, catches all Throwables across native boundaries,
- * and guarantees single-shot completion via listeners + dual stall/duration watchdogs.
+ * Crash-proof cutscene video player backed by Jetpack Media3 ExoPlayer + PlayerView (texture_view).
+ * Plays APK assets directly via asset:/// URI with automatic cached-file retry on decode/source error,
+ * pauses/resumes cleanly with Android Lifecycle, never calls onCompleted() prematurely on setup race,
+ * and guarantees single-shot completion upon real playback end, user skip, or hard ceiling.
  */
+@OptIn(UnstableApi::class)
 @Composable
 fun AssetVideoPlayer(
     assetPath: String,
     statusLabel: String,
     onCompleted: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    skipLabel: String? = null
 ) {
     val context = LocalContext.current
+    val appContext = remember(context) { context.applicationContext }
+    val lifecycleOwner = LocalLifecycleOwner.current
     val latestOnCompleted by rememberUpdatedState(onCompleted)
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
-    val completedOnce = remember(assetPath) { AtomicBoolean(false) }
-    val disposed = remember(assetPath) { AtomicBoolean(false) }
-    val holder = remember(assetPath) { CutscenePlayerHolder() }
 
-    var videoDims by remember(assetPath) { mutableStateOf(1280 to 720) }
+    val normalizedAssetPath = remember(assetPath) { assetPath.trimStart('/') }
+    val completedOnce = remember(normalizedAssetPath) { AtomicBoolean(false) }
+    val disposed = remember(normalizedAssetPath) { AtomicBoolean(false) }
+    val triedFileFallback = remember(normalizedAssetPath) { AtomicBoolean(false) }
+
+    var needsFileFallbackCount by remember(normalizedAssetPath) { mutableIntStateOf(0) }
+    var reachedReady by remember(normalizedAssetPath) { mutableStateOf(false) }
+    var hasStartedPlaying by remember(normalizedAssetPath) { mutableStateOf(false) }
+    var knownDurationMs by remember(normalizedAssetPath) { mutableStateOf(-1L) }
+    var prepStartMs by remember(normalizedAssetPath) { mutableStateOf(System.currentTimeMillis()) }
+    var lastAdvanceMs by remember(normalizedAssetPath) { mutableStateOf(System.currentTimeMillis()) }
+    var isLifecyclePaused by remember(normalizedAssetPath) { mutableStateOf(false) }
 
     fun completeOnceSafely() {
         if (completedOnce.compareAndSet(false, true)) {
@@ -84,72 +106,13 @@ fun AssetVideoPlayer(
         }
     }
 
-    fun releasePlayerSafely() {
-        synchronized(holder.lock) {
-            val mp = holder.mediaPlayer
-            holder.mediaPlayer = null
-            holder.prepared = false
-            holder.surfaceAttached = false
-            if (mp != null) {
-                try { mp.setOnPreparedListener(null) } catch (_: Throwable) {}
-                try { mp.setOnCompletionListener(null) } catch (_: Throwable) {}
-                try { mp.setOnErrorListener(null) } catch (_: Throwable) {}
-                try { mp.setOnVideoSizeChangedListener(null) } catch (_: Throwable) {}
-                try { mp.setSurface(null) } catch (_: Throwable) {}
-                try {
-                    if (mp.isPlaying) mp.stop()
-                } catch (_: Throwable) {}
-                try { mp.reset() } catch (_: Throwable) {}
-                try { mp.release() } catch (_: Throwable) {}
-            }
-            val surf = holder.surface
-            holder.surface = null
-            if (surf != null) {
-                try { surf.release() } catch (_: Throwable) {}
-            }
-        }
-    }
-
-    fun attachSurfaceAndStartLocked(mp: MediaPlayer) {
-        if (disposed.get() || completedOnce.get() || holder.mediaPlayer !== mp) return
-        val surf = holder.surface
-        if (surf == null || !surf.isValid) return
-
-        if (!holder.surfaceAttached) {
-            try {
-                mp.setSurface(surf)
-                holder.surfaceAttached = true
-            } catch (_: Throwable) {
-                completeOnceSafely()
-                return
-            }
-        }
-
-        if (holder.prepared) {
-            try {
-                if (!mp.isPlaying) {
-                    mp.start()
-                }
-            } catch (_: Throwable) {
-                completeOnceSafely()
-            }
-        }
-    }
-
-    val assetValid = remember(assetPath) {
-        try {
-            context.assets.openFd(assetPath).use { true }
-        } catch (_: Throwable) {
-            try {
-                context.assets.open(assetPath).use { true }
-            } catch (_: Throwable) {
-                false
-            }
-        }
+    val assetValid = remember(normalizedAssetPath) {
+        cutsceneAssetExists(appContext, normalizedAssetPath)
     }
 
     if (!assetValid) {
-        LaunchedEffect(assetPath) {
+        LaunchedEffect(normalizedAssetPath) {
+            Log.w("AssetVideoPlayer", "Missing cutscene asset: $normalizedAssetPath")
             completeOnceSafely()
         }
         Box(
@@ -160,157 +123,211 @@ fun AssetVideoPlayer(
         return
     }
 
-    // Prepare data source off UI thread if needed, then bind and prepareAsync MediaPlayer cleanly on Main thread
-    LaunchedEffect(assetPath) {
-        val appCtx = context.applicationContext
-        val cachedFallbackPath = withContext(Dispatchers.IO) {
-            resolveCompressedAssetFallbackIfNeeded(appCtx, assetPath)
+    val exoPlayer = remember(normalizedAssetPath) {
+        try {
+            val audioAttrs = AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .build()
+            ExoPlayer.Builder(appContext)
+                .setAudioAttributes(audioAttrs, true)
+                .build()
+                .apply {
+                    repeatMode = Player.REPEAT_MODE_OFF
+                    volume = 1f
+                    playWhenReady = true
+                }
+        } catch (t: Throwable) {
+            Log.e("AssetVideoPlayer", "Failed to create ExoPlayer: ${t.message}", t)
+            null
+        }
+    }
+
+    if (exoPlayer == null) {
+        LaunchedEffect(normalizedAssetPath) {
+            completeOnceSafely()
+        }
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Color(0xFF010101))
+        )
+        return
+    }
+
+    DisposableEffect(exoPlayer, normalizedAssetPath) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (disposed.get() || completedOnce.get()) return
+                when (playbackState) {
+                    Player.STATE_READY -> {
+                        reachedReady = true
+                        val now = System.currentTimeMillis()
+                        lastAdvanceMs = now
+                        val dur = try { exoPlayer.duration } catch (_: Throwable) { C.TIME_UNSET }
+                        if (dur != C.TIME_UNSET && dur > 0L) {
+                            knownDurationMs = dur
+                        }
+                    }
+                    Player.STATE_ENDED -> {
+                        completeOnceSafely()
+                    }
+                    else -> Unit
+                }
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying && !disposed.get() && !completedOnce.get()) {
+                    hasStartedPlaying = true
+                    lastAdvanceMs = System.currentTimeMillis()
+                }
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                if (disposed.get() || completedOnce.get()) return
+                Log.w(
+                    "AssetVideoPlayer",
+                    "ExoPlayer error on $normalizedAssetPath (fallbackTried=${triedFileFallback.get()}): ${error.errorCodeName}",
+                    error
+                )
+                if (triedFileFallback.compareAndSet(false, true)) {
+                    needsFileFallbackCount++
+                } else {
+                    completeOnceSafely()
+                }
+            }
         }
 
-        if (disposed.get() || completedOnce.get()) return@LaunchedEffect
+        exoPlayer.addListener(listener)
+        try {
+            val useDirectAsset = runCatching {
+                appContext.assets.openFd(normalizedAssetPath).use { true }
+            }.getOrDefault(false)
 
-        val player = try {
-            MediaPlayer()
-        } catch (_: Throwable) {
+            if (useDirectAsset) {
+                exoPlayer.setMediaItem(MediaItem.fromUri(Uri.parse("asset:///$normalizedAssetPath")))
+                exoPlayer.playWhenReady = true
+                exoPlayer.prepare()
+            } else if (triedFileFallback.compareAndSet(false, true)) {
+                needsFileFallbackCount++
+            }
+        } catch (t: Throwable) {
+            Log.w("AssetVideoPlayer", "Initial asset URI prepare error: ${t.message}", t)
+            if (triedFileFallback.compareAndSet(false, true)) {
+                needsFileFallbackCount++
+            } else {
+                completeOnceSafely()
+            }
+        }
+
+        onDispose {
+            disposed.set(true)
+            try { exoPlayer.removeListener(listener) } catch (_: Throwable) {}
+            try { exoPlayer.stop() } catch (_: Throwable) {}
+            try { exoPlayer.clearMediaItems() } catch (_: Throwable) {}
+            try { exoPlayer.release() } catch (_: Throwable) {}
+        }
+    }
+
+    // Fallback: extract asset MP4 to cacheDir if asset:/// URI failed or asset is compressed
+    LaunchedEffect(needsFileFallbackCount, normalizedAssetPath) {
+        if (needsFileFallbackCount <= 0 || disposed.get() || completedOnce.get()) return@LaunchedEffect
+        val diskPath = withContext(Dispatchers.IO) {
+            copyAssetToCacheFile(appContext, normalizedAssetPath)
+        }
+        if (disposed.get() || completedOnce.get()) return@LaunchedEffect
+        if (diskPath == null) {
             completeOnceSafely()
             return@LaunchedEffect
         }
-
         try {
-            player.setOnErrorListener { _, _, _ ->
-                completeOnceSafely()
-                true
-            }
-            player.setOnCompletionListener {
-                completeOnceSafely()
-            }
-            player.setOnVideoSizeChangedListener { _, w, h ->
-                if (w > 0 && h > 0) {
-                    mainHandler.post {
-                        if (!disposed.get() && !completedOnce.get()) {
-                            videoDims = w to h
-                        }
-                    }
-                }
-            }
-            player.setOnPreparedListener { mp ->
-                synchronized(holder.lock) {
-                    if (disposed.get() || completedOnce.get() || holder.mediaPlayer !== mp) {
-                        return@synchronized
-                    }
-                    holder.prepared = true
-                    attachSurfaceAndStartLocked(mp)
-                }
-            }
-
-            player.setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
-                    .build()
-            )
-            player.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT)
-            player.isLooping = false
-
-            var dataSourceBound = false
-            if (cachedFallbackPath == null) {
-                try {
-                    appCtx.assets.openFd(assetPath).use { afd ->
-                        player.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
-                        dataSourceBound = true
-                    }
-                } catch (_: Throwable) {
-                    dataSourceBound = false
-                }
-            }
-
-            if (!dataSourceBound) {
-                val diskPath = cachedFallbackPath ?: withContext(Dispatchers.IO) {
-                    copyAssetToCacheFile(appCtx, assetPath)
-                }
-                if (diskPath == null || disposed.get() || completedOnce.get()) {
-                    try { player.release() } catch (_: Throwable) {}
-                    completeOnceSafely()
-                    return@LaunchedEffect
-                }
-                player.setDataSource(diskPath)
-            }
-
-            synchronized(holder.lock) {
-                if (disposed.get() || completedOnce.get()) {
-                    try { player.release() } catch (_: Throwable) {}
-                    return@LaunchedEffect
-                }
-                holder.mediaPlayer = player
-                holder.prepared = false
-                holder.surfaceAttached = false
-                val surf = holder.surface
-                if (surf != null && surf.isValid) {
-                    try {
-                        player.setSurface(surf)
-                        holder.surfaceAttached = true
-                    } catch (_: Throwable) {
-                    }
-                }
-            }
-
-            player.prepareAsync()
-        } catch (_: Throwable) {
-            synchronized(holder.lock) {
-                if (holder.mediaPlayer === player) {
-                    holder.mediaPlayer = null
-                    holder.prepared = false
-                    holder.surfaceAttached = false
-                }
-            }
-            try { player.setSurface(null) } catch (_: Throwable) {}
-            try { player.reset() } catch (_: Throwable) {}
-            try { player.release() } catch (_: Throwable) {}
+            prepStartMs = System.currentTimeMillis()
+            lastAdvanceMs = System.currentTimeMillis()
+            reachedReady = false
+            hasStartedPlaying = false
+            exoPlayer.stop()
+            exoPlayer.clearMediaItems()
+            exoPlayer.setMediaItem(MediaItem.fromUri(Uri.fromFile(File(diskPath))))
+            exoPlayer.playWhenReady = true
+            exoPlayer.prepare()
+        } catch (t: Throwable) {
+            Log.w("AssetVideoPlayer", "Fallback file prepare error: ${t.message}", t)
             completeOnceSafely()
         }
     }
 
-    DisposableEffect(assetPath) {
+    // Sync ExoPlayer pause/resume with Android Activity Lifecycle
+    DisposableEffect(lifecycleOwner, exoPlayer) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> {
+                    isLifecyclePaused = true
+                    try { exoPlayer.pause() } catch (_: Throwable) {}
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    isLifecyclePaused = false
+                    lastAdvanceMs = System.currentTimeMillis()
+                    if (!disposed.get() && !completedOnce.get()) {
+                        try {
+                            if (exoPlayer.playbackState == Player.STATE_ENDED) {
+                                completeOnceSafely()
+                            } else {
+                                exoPlayer.play()
+                            }
+                        } catch (_: Throwable) {}
+                    }
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
-            disposed.set(true)
-            releasePlayerSafely()
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
-    // Dual Watchdog: completes cutscene if prep stalls > 4.5s, playback stalls > 4.5s, reaches end, or exceeds ceiling
-    LaunchedEffect(assetPath) {
-        val startMs = System.currentTimeMillis()
-        var lastPos = -1
-        var lastAdvanceMs = startMs
+    // Anti-deadlock Watchdog: only counts preparation stall before READY, playback stall after READY,
+    // and enforces a generous hard ceiling beyond the real video duration.
+    LaunchedEffect(exoPlayer, normalizedAssetPath) {
+        var lastPos = -1L
+        var pausedAtMs = 0L
         while (!completedOnce.get() && !disposed.get()) {
-            delay(300L)
+            delay(250L)
             val nowMs = System.currentTimeMillis()
-            val (mp, isPrepared) = synchronized(holder.lock) {
-                holder.mediaPlayer to holder.prepared
-            }
-            if (mp == null) {
-                if (nowMs - startMs > 4000L) {
-                    completeOnceSafely()
-                    break
-                }
+            if (isLifecyclePaused) {
+                if (pausedAtMs == 0L) pausedAtMs = nowMs
                 continue
+            } else if (pausedAtMs != 0L) {
+                val pauseDuration = (nowMs - pausedAtMs).coerceAtLeast(0L)
+                prepStartMs += pauseDuration
+                lastAdvanceMs += pauseDuration
+                pausedAtMs = 0L
             }
 
-            if (!isPrepared) {
-                if (nowMs - startMs > 4500L) {
-                    completeOnceSafely()
-                    break
-                }
-                continue
-            }
-
-            val dur = try { mp.duration } catch (_: Throwable) { -1 }
-            val pos = try { mp.currentPosition } catch (_: Throwable) { 0 }
-            val playing = try { mp.isPlaying } catch (_: Throwable) { false }
-
-            if (dur > 0 && pos >= dur - 80) {
+            val playbackState = try { exoPlayer.playbackState } catch (_: Throwable) { Player.STATE_IDLE }
+            if (playbackState == Player.STATE_ENDED) {
                 completeOnceSafely()
                 break
+            }
+
+            if (!reachedReady) {
+                if (nowMs - prepStartMs > 6500L) {
+                    Log.w("AssetVideoPlayer", "Prep watchdog expired for $normalizedAssetPath")
+                    completeOnceSafely()
+                    break
+                }
+                continue
+            }
+
+            val pos = try { exoPlayer.currentPosition } catch (_: Throwable) { 0L }
+            val dur = if (knownDurationMs > 0L) {
+                knownDurationMs
+            } else {
+                val d = try { exoPlayer.duration } catch (_: Throwable) { C.TIME_UNSET }
+                if (d != C.TIME_UNSET && d > 0L) {
+                    knownDurationMs = d
+                    d
+                } else -1L
             }
 
             if (pos > lastPos) {
@@ -318,9 +335,16 @@ fun AssetVideoPlayer(
                 lastAdvanceMs = nowMs
             }
 
-            val stalledPlaying = (nowMs - lastAdvanceMs > 4500L) || (!playing && nowMs - lastAdvanceMs > 2500L)
-            val exceededCeiling = nowMs - startMs > 13500L
-            if (stalledPlaying || exceededCeiling) {
+            if (hasStartedPlaying && dur > 500L && pos >= dur - 80L) {
+                completeOnceSafely()
+                break
+            }
+
+            val stalledAfterReady = nowMs - lastAdvanceMs > 5000L
+            val maxCeilingMs = if (dur > 0L) dur + 8000L else 22000L
+            val exceededCeiling = nowMs - prepStartMs > maxCeilingMs
+            if (stalledAfterReady || exceededCeiling) {
+                Log.w("AssetVideoPlayer", "Playback watchdog completed cutscene $normalizedAssetPath (stalled=$stalledAfterReady, ceiling=$exceededCeiling)")
                 completeOnceSafely()
                 break
             }
@@ -335,131 +359,96 @@ fun AssetVideoPlayer(
     ) {
         AndroidView(
             factory = { ctx ->
-                TextureView(ctx).apply {
-                    isOpaque = true
+                val pv = try {
+                    LayoutInflater.from(ctx).inflate(R.layout.view_cutscene_player, null, false) as PlayerView
+                } catch (_: Throwable) {
+                    PlayerView(ctx).apply {
+                        useController = false
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        setShutterBackgroundColor(android.graphics.Color.parseColor("#010101"))
+                        keepScreenOn = true
+                    }
+                }
+                pv.apply {
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-                        override fun onSurfaceTextureAvailable(st: SurfaceTexture, width: Int, height: Int) {
-                            try {
-                                applyVideoAspectTransform(this@apply, width, height, videoDims.first, videoDims.second)
-                            } catch (_: Throwable) {
-                            }
-                            val surf = try {
-                                Surface(st)
-                            } catch (_: Throwable) {
-                                null
-                            }
-                            if (surf == null) {
-                                completeOnceSafely()
-                                return
-                            }
-                            synchronized(holder.lock) {
-                                val old = holder.surface
-                                holder.surface = surf
-                                holder.surfaceAttached = false
-                                if (old != null && old !== surf) {
-                                    try { old.release() } catch (_: Throwable) {}
-                                }
-                                val mp = holder.mediaPlayer
-                                if (mp != null && !disposed.get() && !completedOnce.get()) {
-                                    attachSurfaceAndStartLocked(mp)
-                                }
-                            }
-                        }
-
-                        override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, width: Int, height: Int) {
-                            try {
-                                applyVideoAspectTransform(this@apply, width, height, videoDims.first, videoDims.second)
-                            } catch (_: Throwable) {
-                            }
-                        }
-
-                        override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
-                            synchronized(holder.lock) {
-                                try { holder.mediaPlayer?.setSurface(null) } catch (_: Throwable) {}
-                                holder.surfaceAttached = false
-                                val surf = holder.surface
-                                holder.surface = null
-                                if (surf != null) {
-                                    try { surf.release() } catch (_: Throwable) {}
-                                }
-                            }
-                            return true
-                        }
-
-                        override fun onSurfaceTextureUpdated(st: SurfaceTexture) = Unit
-                    }
+                    useController = false
+                    keepScreenOn = true
+                    player = exoPlayer
                 }
             },
-            update = { tv ->
-                if (tv.width > 0 && tv.height > 0) {
-                    try {
-                        applyVideoAspectTransform(tv, tv.width, tv.height, videoDims.first, videoDims.second)
-                    } catch (_: Throwable) {
-                    }
+            update = { pv ->
+                if (pv.player !== exoPlayer) {
+                    pv.player = exoPlayer
                 }
             },
-            onRelease = { tv ->
-                try { tv.surfaceTextureListener = null } catch (_: Throwable) {}
+            onRelease = { pv ->
+                try { pv.player = null } catch (_: Throwable) {}
             },
             modifier = Modifier.fillMaxSize()
         )
 
-        ComposeSurface(
-            color = Color(0xCC09090D),
-            border = BorderStroke(1.dp, Color(0x88C47B42)),
-            shape = RoundedCornerShape(12.dp),
+        Row(
             modifier = Modifier
-                .align(Alignment.BottomEnd)
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
                 .safeDrawingPadding()
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = statusLabel,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFFF5E6C8),
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-            )
+            if (!skipLabel.isNullOrBlank()) {
+                OutlinedButton(
+                    onClick = { completeOnceSafely() },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color(0xCC09090D),
+                        contentColor = Color(0xFFF5E6C8)
+                    ),
+                    border = BorderStroke(1.dp, Color(0xAAC47B42)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .testTag("cutscene_skip_button")
+                ) {
+                    Text(
+                        text = skipLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            } else {
+                Box(modifier = Modifier)
+            }
+
+            Surface(
+                color = Color(0xCC09090D),
+                border = BorderStroke(1.dp, Color(0x88C47B42)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = statusLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFFF5E6C8),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                )
+            }
         }
     }
 }
 
-private fun applyVideoAspectTransform(
-    textureView: TextureView,
-    viewW: Int,
-    viewH: Int,
-    videoW: Int,
-    videoH: Int
-) {
-    if (viewW <= 0 || viewH <= 0 || videoW <= 0 || videoH <= 0) return
-    val viewAspect = viewW.toFloat() / viewH.toFloat()
-    val videoAspect = videoW.toFloat() / videoH.toFloat()
-    var scaleX = 1f
-    var scaleY = 1f
-    if (videoAspect > viewAspect) {
-        scaleY = viewAspect / videoAspect
-    } else if (videoAspect < viewAspect) {
-        scaleX = videoAspect / viewAspect
-    }
-    val matrix = Matrix()
-    matrix.setScale(scaleX, scaleY, viewW / 2f, viewH / 2f)
-    textureView.setTransform(matrix)
-}
-
-private fun resolveCompressedAssetFallbackIfNeeded(
-    context: Context,
-    assetPath: String
-): String? {
-    try {
-        context.assets.openFd(assetPath).use { return null }
+private fun cutsceneAssetExists(context: Context, assetPath: String): Boolean {
+    return try {
+        context.assets.openFd(assetPath).use { true }
     } catch (_: Throwable) {
-        // Fallback if APK asset was compressed
+        try {
+            context.assets.open(assetPath).use { true }
+        } catch (_: Throwable) {
+            false
+        }
     }
-    return copyAssetToCacheFile(context, assetPath)
 }
 
 private fun copyAssetToCacheFile(
@@ -470,10 +459,15 @@ private fun copyAssetToCacheFile(
         val safeName = assetPath.replace('/', '_')
         val cachedFile = File(context.cacheDir, "cutscene_$safeName")
         if (!cachedFile.exists() || cachedFile.length() == 0L) {
+            val tmpFile = File(context.cacheDir, "cutscene_${safeName}.tmp")
             context.assets.open(assetPath).use { input ->
-                cachedFile.outputStream().use { output ->
+                tmpFile.outputStream().use { output ->
                     input.copyTo(output)
                 }
+            }
+            if (tmpFile.exists() && tmpFile.length() > 0L) {
+                if (cachedFile.exists()) cachedFile.delete()
+                tmpFile.renameTo(cachedFile)
             }
         }
         if (cachedFile.exists() && cachedFile.length() > 0L) cachedFile.absolutePath else null

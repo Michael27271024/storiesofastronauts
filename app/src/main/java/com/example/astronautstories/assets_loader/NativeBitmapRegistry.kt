@@ -14,13 +14,16 @@ class NativeBitmapRegistry(context: Context) {
     // Bounded LRU cache to prevent OOM & memory leaks across 50 stages
     private val cache = object : LruCache<String, ImageBitmap>(64) {}
 
-    fun assetExists(assetPath: String): Boolean = try {
-        assetManager.openFd(assetPath).use { true }
-    } catch (_: Exception) {
-        try {
-            assetManager.open(assetPath).use { true }
-        } catch (_: Exception) {
-            false
+    fun assetExists(assetPath: String): Boolean {
+        val normalized = assetPath.trimStart('/')
+        return try {
+            assetManager.openFd(normalized).use { true }
+        } catch (_: Throwable) {
+            try {
+                assetManager.open(normalized).use { true }
+            } catch (_: Throwable) {
+                false
+            }
         }
     }
 

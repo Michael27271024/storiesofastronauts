@@ -204,7 +204,7 @@ fun GameArenaScreen(
     LaunchedEffect(transitionState, activeTransitionVideo, stageNumber, sessionId) {
         when (transitionState) {
             StoryTransitionState.PLAYING_VIDEO -> {
-                delay(15000L)
+                delay(26000L)
                 completeStoryStageTransition()
             }
             StoryTransitionState.NAVIGATING_NEXT -> {
@@ -242,6 +242,7 @@ fun GameArenaScreen(
         AssetVideoPlayer(
             assetPath = currentVideo,
             statusLabel = strings.autoVideoStatusLabel,
+            skipLabel = strings.skipBtn,
             onCompleted = { completeStoryStageTransition() }
         )
         return
