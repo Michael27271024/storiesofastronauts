@@ -220,6 +220,7 @@ class GameSimulation(
     private var fireCooldown = 0f
     private var partSpawned = false
     private var bossSpawned = false
+    private val defeatedEnemyIds = HashSet<Int>()
     private var statusBanner = stageDef.briefingFa
     private var statusBannerTimer = 0f
     private var rivalTickTimer = 0f
@@ -470,10 +471,15 @@ class GameSimulation(
         }
 
         updatePlayer(dt, input)
+        if (phase != ArenaPhase.PLAYING) return
         updateTeammates(dt)
+        if (phase != ArenaPhase.PLAYING) return
         updateBullets(dt, viewportWorldWidth)
+        if (phase != ArenaPhase.PLAYING) return
         updateEnemies(dt)
+        if (phase != ArenaPhase.PLAYING) return
         updatePickups(dt)
+        if (phase != ArenaPhase.PLAYING) return
         updateParticles(dt)
         checkMissionCompletion()
 
@@ -483,6 +489,7 @@ class GameSimulation(
     }
 
     private fun updatePlayer(dt: Float, input: InputControlsState) {
+        if (phase != ArenaPhase.PLAYING) return
         if (player.invulnTimer > 0f) player.invulnTimer -= dt
         if (player.specialCooldown > 0f) player.specialCooldown = (player.specialCooldown - dt).coerceAtLeast(0f)
         if (fireCooldown > 0f) fireCooldown -= dt
@@ -562,7 +569,11 @@ class GameSimulation(
             val speed = weapon.projectileSpeed * 58f
 
             val target = enemies
-                .filter { if (player.facingRight) it.x >= player.x - 40f else it.x <= player.x + 40f }
+                .filter {
+                    it.hp > 0 &&
+                        !(it.kind == EnemyKind.BOSS_OVERLORD && bossKilled) &&
+                        if (player.facingRight) it.x >= player.x - 40f else it.x <= player.x + 40f
+                }
                 .minByOrNull { hypot(it.x + it.width / 2f - muzzleX, it.y + it.height / 2f - muzzleY) }
 
             val aimAngle = if (target != null && hypot(target.x + target.width / 2f - muzzleX, target.y + target.height / 2f - muzzleY) < 620f) {
@@ -599,19 +610,29 @@ class GameSimulation(
             val iter = enemies.iterator()
             while (iter.hasNext()) {
                 val e = iter.next()
+                if (e.hp <= 0) {
+                    iter.remove()
+                    continue
+                }
                 if (hypot(e.x - player.x, e.y - player.y) < 460f) {
                     e.hp -= (4 + fireSkill * 2)
                     if (e.hp <= 0) {
+                        e.hp = 0
                         iter.remove()
                         defeated.add(e)
                     }
                 }
             }
             defeated.forEach { onEnemyDefeated(it) }
+            if (bossKilled && mode == GameMode.STORY && stageDef.objective == MissionObjective.BOSS_BATTLE) {
+                finishBossBattleOnDefeat()
+                return
+            }
         }
     }
 
     private fun updateTeammates(dt: Float) {
+        if (phase != ArenaPhase.PLAYING) return
         val squadBoost = 1f + droneSkill * 0.15f
         for (tm in teammates) {
             val formationX = (player.x - 75f * tm.offsetIndex).coerceIn(16f, worldWidth - 72f)
@@ -622,6 +643,8 @@ class GameSimulation(
             var nearest: EnemyEntity? = null
             var bestDist = 920f
             for (e in enemies) {
+                if (e.hp <= 0) continue
+                if (e.kind == EnemyKind.BOSS_OVERLORD && bossKilled) continue
                 val d = hypot(e.x - tm.x, e.y - tm.y)
                 if (d < bestDist) {
                     bestDist = d
@@ -643,8 +666,10 @@ class GameSimulation(
     }
 
     private fun updateBullets(dt: Float, viewportWorldWidth: Float) {
+        if (phase != ArenaPhase.PLAYING) return
         val bIter = bullets.iterator()
         while (bIter.hasNext()) {
+            if (phase != ArenaPhase.PLAYING) break
             val b = bIter.next()
             b.x += b.vx * dt
             b.y += b.vy * dt
@@ -660,14 +685,18 @@ class GameSimulation(
                 val eIter = enemies.iterator()
                 while (eIter.hasNext()) {
                     val e = eIter.next()
+                    if (e.hp <= 0) {
+                        eIter.remove()
+                        continue
+                    }
                     if (rectsOverlap(b.x, b.y, b.width, b.height, e.x, e.y, e.width, e.height)) {
                         hit = true
                         shotsHit++
-                        e.hp -= b.damage
+                        e.hp = (e.hp - b.damage).coerceAtLeast(0)
                         spawnExplosion(b.x, b.y, b.colorHex, 5)
                         if (e.kind == EnemyKind.BOSS_OVERLORD) {
                             safeSfx("boss_hit")
-                            if (e.hp <= e.maxHp / 2 && e.phase == 1) {
+                            if (e.hp > 0 && e.hp <= e.maxHp / 2 && e.phase == 1) {
                                 e.phase = 2
                                 showBanner("باس وارد فاز دوم شد! حملات لیزری شدیدتر می‌شوند!")
                             }
@@ -681,22 +710,38 @@ class GameSimulation(
                         break
                     }
                 }
+                if (hit) bIter.remove()
                 if (defeatedEnemy != null) {
                     onEnemyDefeated(defeatedEnemy)
+                    if (defeatedEnemy.kind == EnemyKind.BOSS_OVERLORD &&
+                        mode == GameMode.STORY &&
+                        stageDef.objective == MissionObjective.BOSS_BATTLE
+                    ) {
+                        checkMissionCompletion()
+                        if (phase != ArenaPhase.PLAYING) break
+                    }
                 }
-                if (hit) bIter.remove()
             } else {
                 if (rectsOverlap(b.x, b.y, b.width, b.height, player.x, player.y, player.width, player.height)) {
                     bIter.remove()
                     damagePlayer(1)
+                    if (phase != ArenaPhase.PLAYING) break
                 }
             }
+        }
+        if (phase != ArenaPhase.PLAYING) {
+            bullets.removeAll { !it.fromPlayer }
         }
     }
 
     private fun updateEnemies(dt: Float) {
+        if (phase != ArenaPhase.PLAYING) return
         val snapshot = enemies.toList()
         for (e in snapshot) {
+            if (phase != ArenaPhase.PLAYING) break
+            if (e.hp <= 0) continue
+            if (e.kind == EnemyKind.BOSS_OVERLORD && bossKilled) continue
+
             e.bobPhase += dt * 4f
             if (e.kind == EnemyKind.BOSS_OVERLORD) {
                 e.x += e.speed * e.dir * dt
@@ -747,32 +792,48 @@ class GameSimulation(
     }
 
     private fun onEnemyDefeated(e: EnemyEntity) {
-        enemiesKilled++
-        score += if (e.kind == EnemyKind.BOSS_OVERLORD) 850L else 120L
-        safeSfx("enemy_die")
-        spawnExplosion(e.x + e.width / 2f, e.y + e.height / 2f, 0xFFC47B42, 14)
-
-        if (e.kind == EnemyKind.SPLITTER) {
-            repeat(2) { i ->
-                spawnEnemy(EnemyKind.MINI_SPLITTER, e.x + (if (i == 0) -25f else 25f), e.y)
-            }
-        }
+        if (!defeatedEnemyIds.add(e.id)) return
 
         if (e.kind == EnemyKind.BOSS_OVERLORD) {
             bossKilled = true
+            enemies.removeAll { it.kind == EnemyKind.BOSS_OVERLORD && it.hp <= 0 }
         }
 
-        if (stageDef.objective == MissionObjective.OXYGEN_AND_PART && player.batteries < stageDef.targetBatteries) {
-            pickups.add(PickupEntity(nextEntityId++, PickupKind.BATTERY, e.x, e.y))
-        } else {
-            val roll = Random.nextFloat()
-            when {
-                roll < 0.36f -> pickups.add(PickupEntity(nextEntityId++, PickupKind.AMMO_PACK, e.x, e.y))
-                roll < 0.58f -> pickups.add(PickupEntity(nextEntityId++, PickupKind.CRYSTAL, e.x, e.y))
-                roll < 0.74f -> pickups.add(PickupEntity(nextEntityId++, PickupKind.HEALTH_PACK, e.x, e.y))
-            }
-        }
+        enemiesKilled++
+        score += if (e.kind == EnemyKind.BOSS_OVERLORD) 850L else 120L
         player.ammo += (6 + luckSkill * 2)
+
+        try {
+            safeSfx("enemy_die")
+            spawnExplosion(e.x + e.width / 2f, e.y + e.height / 2f, 0xFFC47B42, 14)
+
+            if (e.kind == EnemyKind.SPLITTER) {
+                repeat(2) { i ->
+                    spawnEnemy(EnemyKind.MINI_SPLITTER, e.x + (if (i == 0) -25f else 25f), e.y)
+                }
+            }
+
+            if (stageDef.objective == MissionObjective.OXYGEN_AND_PART && player.batteries < stageDef.targetBatteries) {
+                pickups.add(PickupEntity(nextEntityId++, PickupKind.BATTERY, e.x, e.y))
+            } else {
+                val roll = Random.nextFloat()
+                when {
+                    roll < 0.36f -> pickups.add(PickupEntity(nextEntityId++, PickupKind.AMMO_PACK, e.x, e.y))
+                    roll < 0.58f -> pickups.add(PickupEntity(nextEntityId++, PickupKind.CRYSTAL, e.x, e.y))
+                    roll < 0.74f -> pickups.add(PickupEntity(nextEntityId++, PickupKind.HEALTH_PACK, e.x, e.y))
+                }
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun finishBossBattleOnDefeat() {
+        try {
+            enemies.removeAll { it.kind == EnemyKind.BOSS_OVERLORD || it.hp <= 0 }
+            bullets.removeAll { !it.fromPlayer }
+        } catch (_: Throwable) {
+        }
+        checkMissionCompletion()
     }
 
     private fun updatePickups(dt: Float) {
@@ -850,7 +911,8 @@ class GameSimulation(
 
         when (mode) {
             GameMode.ENDLESS -> {
-                if (enemies.isEmpty()) {
+                if (enemies.none { it.hp > 0 }) {
+                    enemies.clear()
                     wave++
                     score += wave * 150L
                     showBanner("موج $wave آغاز شد!")
@@ -858,18 +920,27 @@ class GameSimulation(
                 }
             }
             GameMode.CHALLENGE, GameMode.MULTIPLAYER -> {
-                if (enemies.isEmpty()) {
+                if (enemies.none { it.hp > 0 }) {
+                    enemies.clear()
                     triggerVictory()
                 }
             }
             GameMode.STORY -> {
                 val complete = when (stageDef.objective) {
                     MissionObjective.OXYGEN_AND_PART, MissionObjective.STORY_EXPEDITION -> false
-                    MissionObjective.BOSS_BATTLE -> bossKilled && enemies.none { it.kind == EnemyKind.BOSS_OVERLORD }
-                    MissionObjective.RESCUE_HOSTAGES -> player.hostagesRescued >= 3 && enemies.isEmpty()
-                    MissionObjective.DEFEND_STATION, MissionObjective.ALIEN_PURGE -> enemies.isEmpty()
+                    MissionObjective.BOSS_BATTLE ->
+                        bossKilled || enemies.none { it.kind == EnemyKind.BOSS_OVERLORD && it.hp > 0 }
+                    MissionObjective.RESCUE_HOSTAGES ->
+                        player.hostagesRescued >= 3 && enemies.none { it.hp > 0 }
+                    MissionObjective.DEFEND_STATION, MissionObjective.ALIEN_PURGE ->
+                        enemies.none { it.hp > 0 }
                 }
                 if (complete) {
+                    if (stageDef.objective == MissionObjective.BOSS_BATTLE) {
+                        bossKilled = true
+                        enemies.removeAll { it.kind == EnemyKind.BOSS_OVERLORD || it.hp <= 0 }
+                    }
+                    bullets.removeAll { !it.fromPlayer }
                     if (stageDef.hasBetrayalChoice) {
                         phase = ArenaPhase.STORY_CHOICE
                     } else {
@@ -921,23 +992,26 @@ class GameSimulation(
     }
 
     private fun spawnExplosion(x: Float, y: Float, colorHex: Long, count: Int) {
-        val room = (maxParticles - particles.size).coerceAtLeast(0)
-        val spawnCount = minOf(count, room)
-        repeat(spawnCount) {
-            val angle = Random.nextFloat() * (2f * Math.PI.toFloat())
-            val speed = 60f + Random.nextFloat() * 190f
-            particles.add(
-                ParticleEntity(
-                    x = x,
-                    y = y,
-                    vx = cos(angle) * speed,
-                    vy = sin(angle) * speed,
-                    life = 0.45f,
-                    maxLife = 0.45f,
-                    colorHex = colorHex,
-                    size = Random.nextFloat() * 5f + 3f
+        try {
+            val room = (maxParticles - particles.size).coerceAtLeast(0)
+            val spawnCount = minOf(count, room)
+            repeat(spawnCount) {
+                val angle = Random.nextFloat() * (2f * Math.PI.toFloat())
+                val speed = 60f + Random.nextFloat() * 190f
+                particles.add(
+                    ParticleEntity(
+                        x = x,
+                        y = y,
+                        vx = cos(angle) * speed,
+                        vy = sin(angle) * speed,
+                        life = 0.45f,
+                        maxLife = 0.45f,
+                        colorHex = colorHex,
+                        size = Random.nextFloat() * 5f + 3f
+                    )
                 )
-            )
+            }
+        } catch (_: Throwable) {
         }
     }
 
@@ -956,7 +1030,7 @@ class GameSimulation(
         ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by
 
     fun buildSnapshot(): HudSnapshot {
-        val boss = enemies.firstOrNull { it.kind == EnemyKind.BOSS_OVERLORD }
+        val boss = enemies.firstOrNull { it.kind == EnemyKind.BOSS_OVERLORD && it.hp > 0 }
         val stars = when {
             phase != ArenaPhase.VICTORY -> 0
             player.health >= player.maxHealth - 1 && timeRemaining > 45f -> 3
@@ -1006,8 +1080,8 @@ class GameSimulation(
             rivalScore = rivalScore,
             wave = wave,
             timeRemainingSec = timeRemaining.toInt(),
-            bossHp = boss?.hp ?: 0,
-            bossMaxHp = boss?.maxHp ?: 0,
+            bossHp = (boss?.hp ?: 0).coerceAtLeast(0),
+            bossMaxHp = (boss?.maxHp ?: 0).coerceAtLeast(0),
             bossPhase = boss?.phase ?: 1,
             specialReadyRatio = (1f - (player.specialCooldown / 8.0f)).coerceIn(0f, 1f),
             statusBanner = statusBanner,

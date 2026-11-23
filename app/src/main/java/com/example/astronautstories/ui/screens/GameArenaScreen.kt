@@ -391,7 +391,7 @@ fun GameArenaScreen(
             }
 
             // Boss Health Bar when active
-            if (hud.bossMaxHp > 0 && hud.bossHp > 0) {
+            if (hud.phase == ArenaPhase.PLAYING && hud.bossMaxHp > 0 && hud.bossHp > 0) {
                 Surface(
                     color = Color(0xCC180A0D),
                     shape = RoundedCornerShape(12.dp),
@@ -419,7 +419,7 @@ fun GameArenaScreen(
                         }
                         Spacer(Modifier.height(3.dp))
                         LinearProgressIndicator(
-                            progress = { (hud.bossHp.toFloat() / hud.bossMaxHp.toFloat()).coerceIn(0f, 1f) },
+                            progress = { (hud.bossHp.toFloat() / hud.bossMaxHp.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f) },
                             color = Color(0xFFE05252),
                             trackColor = Color(0x44F5E6C8),
                             modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp))
@@ -677,7 +677,7 @@ fun GameArenaScreen(
 
             hud.phase == ArenaPhase.VICTORY || hud.phase == ArenaPhase.GAME_OVER -> {
                 val won = hud.phase == ArenaPhase.VICTORY
-                val accuracy = if (hud.shotsFired > 0) (hud.shotsHit * 100) / hud.shotsFired else 100
+                val accuracy = if (hud.shotsFired > 0) ((hud.shotsHit * 100) / hud.shotsFired).coerceIn(0, 100) else 100
                 val isAutoStoryTransition = won &&
                     mode == GameMode.STORY &&
                     transitionState != StoryTransitionState.FINISHED_FINALE &&
@@ -736,7 +736,12 @@ fun GameArenaScreen(
                     )
 
                     if (isAutoStoryTransition) {
-                        val hasVideo = activeSim.stageDef.transitionVideoAsset?.let { bitmapRegistry.assetExists(it) } == true
+                        val videoAssetPath = activeSim.stageDef.transitionVideoAsset
+                        val hasVideo = remember(videoAssetPath) {
+                            !videoAssetPath.isNullOrBlank() && runCatching {
+                                bitmapRegistry.assetExists(videoAssetPath)
+                            }.getOrDefault(false)
+                        }
                         Surface(
                             color = MaterialTheme.colorScheme.primaryContainer,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),

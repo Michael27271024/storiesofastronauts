@@ -111,7 +111,7 @@ fun GameCanvasView(
             }
 
             // 4. Pickups
-            for (item in sim.pickups) {
+            for (item in sim.pickups.toList()) {
                 val path = when (item.kind) {
                     PickupKind.GUN -> "images/gun.png"
                     PickupKind.BATTERY -> "images/battery.png"
@@ -145,7 +145,7 @@ fun GameCanvasView(
             // 5. AI Wingmates using real astronaut.png & squad sprites
             val mateLeaderBmp = bitmapRegistry.getBitmap("images/astronaut.png", 160)
             val mateBmp = bitmapRegistry.getBitmap("images/player_idle_gun.png", 160)
-            for (tm in sim.teammates) {
+            for (tm in sim.teammates.toList()) {
                 val chosenMateBmp = if (tm.offsetIndex == 0 && mateLeaderBmp != null) mateLeaderBmp else mateBmp
                 drawSpriteOrRect(
                     bmp = chosenMateBmp,
@@ -199,7 +199,8 @@ fun GameCanvasView(
             }
 
             // 7. Enemies
-            for (e in sim.enemies) {
+            for (e in sim.enemies.toList()) {
+                if (e.hp <= 0) continue
                 val ePath = when (e.kind) {
                     EnemyKind.ZOMBIE -> "images/zombie.png"
                     EnemyKind.ALIEN_SOLDIER -> "images/alien_soldier.png"
@@ -222,7 +223,7 @@ fun GameCanvasView(
                     bottomAlign = groundAligned
                 )
 
-                if (e.hp < e.maxHp) {
+                if (e.maxHp > 0 && e.hp < e.maxHp) {
                     val ratio = (e.hp.toFloat() / e.maxHp.toFloat()).coerceIn(0f, 1f)
                     drawRect(Color.Black.copy(alpha = 0.65f), Offset(e.x, e.y - 10f), Size(e.width, 5f))
                     drawRect(Color(0xFFE05252), Offset(e.x, e.y - 10f), Size(e.width * ratio, 5f))
@@ -230,7 +231,7 @@ fun GameCanvasView(
             }
 
             // 8. Bullets & Particles
-            for (b in sim.bullets) {
+            for (b in sim.bullets.toList()) {
                 drawCircle(
                     color = Color(b.colorHex).copy(alpha = 0.35f),
                     radius = maxOf(b.width, b.height) * 0.7f,
@@ -243,11 +244,12 @@ fun GameCanvasView(
                 )
             }
 
-            for (pt in sim.particles) {
+            for (pt in sim.particles.toList()) {
+                if (pt.maxLife <= 0f || pt.life <= 0f) continue
                 val alpha = (pt.life / pt.maxLife).coerceIn(0f, 1f)
                 drawCircle(
                     color = Color(pt.colorHex).copy(alpha = alpha),
-                    radius = pt.size,
+                    radius = pt.size.coerceAtLeast(0.5f),
                     center = Offset(pt.x, pt.y)
                 )
             }
@@ -283,8 +285,8 @@ private fun DrawScope.drawSpriteOrRect(
     alpha: Float = 1f,
     bottomAlign: Boolean = true
 ) {
-    if (bmp == null) {
-        drawRect(fallbackColor.copy(alpha = alpha), Offset(x, y), Size(w, h))
+    if (bmp == null || x.isNaN() || y.isNaN() || w <= 0f || h <= 0f) {
+        drawRect(fallbackColor.copy(alpha = alpha), Offset(x.takeIf { !it.isNaN() } ?: 0f, y.takeIf { !it.isNaN() } ?: 0f), Size(w.coerceAtLeast(1f), h.coerceAtLeast(1f)))
         return
     }
     val bmpW = bmp.width.coerceAtLeast(1).toFloat()
@@ -294,6 +296,8 @@ private fun DrawScope.drawSpriteOrRect(
     val drawH = (bmpH * fitScale).coerceAtLeast(1f)
     val drawX = x + (w - drawW) / 2f
     val drawY = if (bottomAlign) (y + h - drawH) else (y + (h - drawH) / 2f)
+    val dstOffset = IntOffset(drawX.roundToInt(), drawY.roundToInt())
+    val dstSize = IntSize(drawW.roundToInt().coerceAtLeast(1), drawH.roundToInt().coerceAtLeast(1))
 
     if (flipHorizontal) {
         withTransform({
@@ -301,16 +305,16 @@ private fun DrawScope.drawSpriteOrRect(
         }) {
             drawImage(
                 image = bmp,
-                dstOffset = IntOffset(drawX.roundToInt(), drawY.roundToInt()),
-                dstSize = IntSize(drawW.roundToInt(), drawH.roundToInt()),
+                dstOffset = dstOffset,
+                dstSize = dstSize,
                 alpha = alpha
             )
         }
     } else {
         drawImage(
             image = bmp,
-            dstOffset = IntOffset(drawX.roundToInt(), drawY.roundToInt()),
-            dstSize = IntSize(drawW.roundToInt(), drawH.roundToInt()),
+            dstOffset = dstOffset,
+            dstSize = dstSize,
             alpha = alpha
         )
     }

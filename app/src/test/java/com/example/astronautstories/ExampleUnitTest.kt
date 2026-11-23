@@ -299,4 +299,91 @@ class ExampleUnitTest {
         assertEquals(ArenaPhase.BRIEFING, snap6.phase)
         assertTrue(snap6.health >= 5)
     }
+
+    @Test
+    fun stage5BossDefeat_viaShockwave_stopsBossAndMinionAttacksOnDeathFrame() {
+        val stage5 = GameCatalog.getStage(5)
+        val sim5 = GameSimulation(
+            mode = GameMode.STORY,
+            stageDef = stage5,
+            hero = HeroId.KOUROSH,
+            weapon = WeaponType.PHOTON_SNIPER,
+            skillLevels = emptyMap(),
+            graphicsQuality = GraphicsQuality.MEDIUM,
+            onSfx = {}
+        )
+        sim5.startMission()
+        val boss = sim5.enemies.first { it.kind == com.example.astronautstories.domain.model.EnemyKind.BOSS_OVERLORD }
+        boss.hp = 1
+        sim5.player.x = boss.x - 100f
+        sim5.player.y = boss.y
+        sim5.player.health = 1
+        sim5.player.shield = 0
+        // Enemy bullet overlapping player on the exact frame boss dies via shockwave
+        sim5.bullets.add(
+            com.example.astronautstories.engine.BulletEntity(
+                x = sim5.player.x + 10f,
+                y = sim5.player.y + 10f,
+                vx = 0f,
+                vy = 0f,
+                width = 12f,
+                height = 12f,
+                damage = 1,
+                fromPlayer = false,
+                colorHex = 0xFFE05252L
+            )
+        )
+
+        sim5.step(0.016f, InputControlsState(specialTrigger = true), 1280f)
+        val snap = sim5.buildSnapshot()
+        assertEquals(ArenaPhase.VICTORY, snap.phase)
+        assertTrue(snap.bossKilled)
+        assertEquals(0, snap.bossHp)
+        assertEquals(0, snap.bossMaxHp)
+        assertTrue(sim5.bullets.none { !it.fromPlayer })
+    }
+
+    @Test
+    fun stage5BossDefeat_multiBulletHit_countsSingleBossKillAndClearsBoss() {
+        val stage5 = GameCatalog.getStage(5)
+        val sim5 = GameSimulation(
+            mode = GameMode.STORY,
+            stageDef = stage5,
+            hero = HeroId.KOUROSH,
+            weapon = WeaponType.LASER_SHOTGUN,
+            skillLevels = emptyMap(),
+            graphicsQuality = GraphicsQuality.MEDIUM,
+            onSfx = {}
+        )
+        sim5.startMission()
+        val boss = sim5.enemies.first { it.kind == com.example.astronautstories.domain.model.EnemyKind.BOSS_OVERLORD }
+        boss.hp = 1
+        boss.phase = 1
+        sim5.player.x = boss.x - 140f
+        sim5.cameraX = (boss.x - 300f).coerceAtLeast(0f)
+
+        repeat(3) {
+            sim5.bullets.add(
+                com.example.astronautstories.engine.BulletEntity(
+                    x = boss.x + 15f,
+                    y = boss.y + 15f,
+                    vx = 0f,
+                    vy = 0f,
+                    width = 18f,
+                    height = 18f,
+                    damage = 2,
+                    fromPlayer = true,
+                    colorHex = 0xFFFF6D00L
+                )
+            )
+        }
+
+        sim5.step(0.016f, InputControlsState(), 1280f)
+        val snap = sim5.buildSnapshot()
+        assertEquals(ArenaPhase.VICTORY, snap.phase)
+        assertTrue(snap.bossKilled)
+        assertEquals(1, snap.enemiesKilled)
+        assertEquals(1, boss.phase)
+        assertEquals(0, snap.bossHp)
+    }
 }

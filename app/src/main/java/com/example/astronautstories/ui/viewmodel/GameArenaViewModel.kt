@@ -221,7 +221,19 @@ class GameArenaViewModel(
                     sim.buildSnapshot()
                 } catch (e: Throwable) {
                     Log.e("GameArenaVM", "Snapshot build error", e)
-                    HudSnapshot(mode = sim.mode, stageNumber = sim.stageDef.stageNumber)
+                    HudSnapshot(
+                        mode = sim.mode,
+                        stageNumber = sim.stageDef.stageNumber,
+                        phase = sim.phase,
+                        score = sim.score,
+                        isVictory = sim.phase == ArenaPhase.VICTORY,
+                        enemiesKilled = sim.enemiesKilled,
+                        bossKilled = sim.bossKilled,
+                        shotsFired = sim.shotsFired,
+                        shotsHit = sim.shotsHit,
+                        elapsedSeconds = sim.elapsedSeconds.toLong(),
+                        betrayalChosen = sim.betrayalChosen
+                    )
                 }
                 _hud.value = snap
                 _frameTick.value = _frameTick.value + 1L
@@ -285,15 +297,17 @@ class GameArenaViewModel(
 
     fun toggleAutoFire() {
         _autoFire.value = !_autoFire.value
-        container.audioEngine.playSfx("click")
+        runCatching { container.audioEngine.playSfx("click") }
     }
 
     fun setAudioMutedForCutscene(muted: Boolean, ownerToken: Long? = null) {
         if (ownerToken != null && activeOwnerToken != ownerToken) return
-        if (muted) {
-            container.audioEngine.onPauseLifecycle()
-        } else {
-            container.audioEngine.onResumeLifecycle()
+        runCatching {
+            if (muted) {
+                container.audioEngine.onPauseLifecycle()
+            } else {
+                container.audioEngine.onResumeLifecycle()
+            }
         }
     }
 
@@ -329,7 +343,7 @@ class GameArenaViewModel(
             sim.startMission()
             _hud.value = sim.buildSnapshot()
         }
-        container.audioEngine.playSfx("click")
+        runCatching { container.audioEngine.playSfx("click") }
     }
 
     fun resolveStoryChoice(betrayal: Boolean) {
@@ -343,7 +357,7 @@ class GameArenaViewModel(
     fun togglePause(paused: Boolean) {
         if (paused) resetInputs()
         _isPaused.value = paused
-        container.audioEngine.playSfx("click")
+        runCatching { container.audioEngine.playSfx("click") }
     }
 
     fun stopSessionIfOwner(ownerToken: Long) {
