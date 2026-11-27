@@ -14,20 +14,28 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -68,8 +76,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.astronautstories.R
 import com.example.astronautstories.assets_loader.NativeBitmapRegistry
 import com.example.astronautstories.localization.AppLanguage
@@ -91,44 +99,81 @@ fun SplashScreen(
         onFinished()
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF010101))
             .safeDrawingPadding(),
         contentAlignment = Alignment.Center
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(28.dp),
-            modifier = Modifier.padding(24.dp)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.img_app_logo),
-                contentDescription = strings.appTitle,
-                modifier = Modifier
-                    .size(180.dp)
-                    .clip(RoundedCornerShape(28.dp))
-                    .border(2.dp, Color(0xFFC47B42).copy(alpha = 0.7f), RoundedCornerShape(28.dp)),
-                contentScale = ContentScale.Fit
-            )
+        val compactSplash = maxWidth < 500.dp || maxHeight < 260.dp
+        val logoSize = if (maxHeight < 280.dp) 120.dp else 172.dp
+
+        if (compactSplash) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.padding(20.dp)
             ) {
+                Image(
+                    painter = painterResource(id = R.drawable.img_app_logo),
+                    contentDescription = strings.appTitle,
+                    modifier = Modifier
+                        .size(logoSize)
+                        .clip(RoundedCornerShape(24.dp))
+                        .border(2.dp, Color(0xFFC47B42).copy(alpha = 0.7f), RoundedCornerShape(24.dp)),
+                    contentScale = ContentScale.Fit
+                )
                 Text(
                     text = strings.appTitle,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFF5E6C8)
+                    color = Color(0xFFF5E6C8),
+                    textAlign = TextAlign.Center
                 )
                 LinearProgressIndicator(
                     modifier = Modifier
-                        .width(220.dp)
+                        .widthIn(max = 240.dp)
+                        .fillMaxWidth(0.75f)
                         .height(6.dp)
                         .clip(RoundedCornerShape(4.dp)),
                     color = Color(0xFFC47B42),
                     trackColor = Color(0xFF1E1D26)
                 )
+            }
+        } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(28.dp),
+                modifier = Modifier.padding(24.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.img_app_logo),
+                    contentDescription = strings.appTitle,
+                    modifier = Modifier
+                        .size(logoSize)
+                        .clip(RoundedCornerShape(28.dp))
+                        .border(2.dp, Color(0xFFC47B42).copy(alpha = 0.7f), RoundedCornerShape(28.dp)),
+                    contentScale = ContentScale.Fit
+                )
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = strings.appTitle,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF5E6C8)
+                    )
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .width(220.dp)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = Color(0xFFC47B42),
+                        trackColor = Color(0xFF1E1D26)
+                    )
+                }
             }
         }
     }
@@ -158,6 +203,7 @@ fun TrailerAndAcademyScreen(
     onBack: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(initialTab.coerceIn(0, 1)) }
+    var tutorialPage by remember { mutableIntStateOf(0) }
 
     val tutorials = remember {
         listOf(
@@ -207,13 +253,22 @@ fun TrailerAndAcademyScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
-                title = { Text(strings.academyTitle) },
+                title = {
+                    Text(
+                        text = strings.academyTitle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
                 navigationIcon = {
                     IconButton(
                         onClick = onBack,
-                        modifier = Modifier.testTag("academy_back_button")
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("academy_back_button")
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = strings.backBtn)
                     }
@@ -230,14 +285,26 @@ fun TrailerAndAcademyScreen(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text(strings.trailerTab, maxLines = 1) },
+                    text = {
+                        Text(
+                            text = strings.trailerTab,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
                     icon = { Icon(Icons.Default.Movie, contentDescription = null) },
                     modifier = Modifier.testTag("tab_trailer")
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text(strings.tutorialsTab, maxLines = 1) },
+                    text = {
+                        Text(
+                            text = strings.tutorialsTab,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
                     icon = { Icon(Icons.Default.School, contentDescription = null) },
                     modifier = Modifier.testTag("tab_tutorials")
                 )
@@ -247,84 +314,153 @@ fun TrailerAndAcademyScreen(
                 CinematicTrailerView(language = language, bitmapRegistry = bitmapRegistry)
             } else {
                 var highlightedDemo by remember { mutableStateOf<String?>(null) }
-                Column(
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    tutorials.chunked(2).forEach { pair ->
-                        Row(
+                    val colCount = if (maxWidth >= 560.dp) 2 else 1
+                    val rowCount = if (maxHeight >= 305.dp) 2 else 1
+                    val pageSize = colCount * rowCount
+                    val totalPages = ((tutorials.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+                    val clampedPage = tutorialPage.coerceIn(0, totalPages - 1)
+                    val pageTutorials = tutorials.drop(clampedPage * pageSize).take(pageSize)
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .widthIn(max = 1120.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            pair.forEach { mod ->
-                                val isActive = highlightedDemo == mod.id
-                                Card(
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (isActive) {
-                                            MaterialTheme.colorScheme.primaryContainer
-                                        } else {
-                                            MaterialTheme.colorScheme.surface
-                                        }
-                                    ),
-                                    border = BorderStroke(
-                                        1.dp,
-                                        if (isActive) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                                    ),
+                            val rows = pageTutorials.chunked(colCount)
+                            for (r in 0 until rowCount) {
+                                val pair = rows.getOrNull(r) ?: emptyList()
+                                Row(
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(12.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        UniformAssetBadge(
-                                            bitmapRegistry = bitmapRegistry,
-                                            assetPath = mod.assetPath,
-                                            drawableRes = mod.drawableRes,
-                                            sizeDp = 56.dp,
-                                            cornerRadius = 12.dp,
-                                            innerPadding = 5.dp,
-                                            darkBackdrop = mod.darkBackdrop,
-                                            cropToBounds = mod.cropToBounds
-                                        )
-                                        Column(
+                                    pair.forEach { mod ->
+                                        val isActive = highlightedDemo == mod.id
+                                        Card(
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = if (isActive) {
+                                                    MaterialTheme.colorScheme.primaryContainer
+                                                } else {
+                                                    MaterialTheme.colorScheme.surface
+                                                }
+                                            ),
+                                            border = BorderStroke(
+                                                1.dp,
+                                                if (isActive) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                            ),
+                                            shape = RoundedCornerShape(14.dp),
                                             modifier = Modifier
                                                 .weight(1f)
-                                                .fillMaxHeight(),
-                                            verticalArrangement = Arrangement.SpaceBetween
+                                                .fillMaxHeight()
                                         ) {
-                                            Text(
-                                                text = if (language == AppLanguage.ENGLISH) mod.titleEn else mod.titleFa,
-                                                style = MaterialTheme.typography.titleSmall.copy(fontSize = 12.sp, lineHeight = 15.sp),
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 2
-                                            )
-                                            Text(
-                                                text = if (language == AppLanguage.ENGLISH) mod.bodyEn else mod.bodyFa,
-                                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.5.sp, lineHeight = 14.sp),
-                                                maxLines = 3
-                                            )
-                                            FilledTonalButton(
-                                                onClick = { highlightedDemo = if (isActive) null else mod.id },
-                                                modifier = Modifier.height(38.dp).testTag("tutorial_demo_${mod.id}")
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(12.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Text(
-                                                    text = if (language == AppLanguage.ENGLISH) mod.demoActionLabelEn else mod.demoActionLabelFa,
-                                                    style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
-                                                    maxLines = 1
+                                                UniformAssetBadge(
+                                                    bitmapRegistry = bitmapRegistry,
+                                                    assetPath = mod.assetPath,
+                                                    drawableRes = mod.drawableRes,
+                                                    sizeDp = 52.dp,
+                                                    cornerRadius = 12.dp,
+                                                    innerPadding = 5.dp,
+                                                    darkBackdrop = mod.darkBackdrop,
+                                                    cropToBounds = mod.cropToBounds
                                                 )
+                                                Column(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight(),
+                                                    verticalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                                        Text(
+                                                            text = if (language == AppLanguage.ENGLISH) mod.titleEn else mod.titleFa,
+                                                            style = MaterialTheme.typography.titleSmall,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 2,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        Text(
+                                                            text = if (language == AppLanguage.ENGLISH) mod.bodyEn else mod.bodyFa,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            maxLines = 3,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                    FilledTonalButton(
+                                                        onClick = { highlightedDemo = if (isActive) null else mod.id },
+                                                        contentPadding = PaddingValues(horizontal = 12.dp),
+                                                        modifier = Modifier
+                                                            .heightIn(min = 48.dp)
+                                                            .testTag("tutorial_demo_${mod.id}")
+                                                    ) {
+                                                        Text(
+                                                            text = if (language == AppLanguage.ENGLISH) mod.demoActionLabelEn else mod.demoActionLabelFa,
+                                                            style = MaterialTheme.typography.labelMedium,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                     }
+                                    repeat(colCount - pair.size) { Spacer(Modifier.weight(1f)) }
+                                }
+                            }
+                        }
+
+                        if (totalPages > 1) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 48.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = { if (clampedPage > 0) tutorialPage = clampedPage - 1 },
+                                    enabled = clampedPage > 0,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .testTag("tutorial_prev_page")
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous")
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = "${clampedPage + 1} / $totalPages",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                IconButton(
+                                    onClick = { if (clampedPage < totalPages - 1) tutorialPage = clampedPage + 1 },
+                                    enabled = clampedPage < totalPages - 1,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .testTag("tutorial_next_page")
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next")
                                 }
                             }
                         }
@@ -365,15 +501,20 @@ private fun CinematicTrailerView(
         "images/backgrounds/alien_base_under_attack.jpg",
         "images/iran_flag_on_saturn.png"
     )
-    val captions = if (language == AppLanguage.ENGLISH) {
-        listOf(
+    val captions = when (language) {
+        AppLanguage.ENGLISH -> listOf(
             "JUNE 21, 2025 — FOUR HEROES LAUNCHED BEYOND EARTH",
             "AMBUSHED ON THE MOON — COLLECT OXYGEN & REBUILD THE SHIP",
             "10 PLANETS, 50 STAGES, 8 HEROES & DEADLY STELLAR BOSSES",
             "STORY CAMPAIGN, ENDLESS SURVIVAL & AI SQUAD DUEL!"
         )
-    } else {
-        listOf(
+        AppLanguage.ARABIC -> listOf(
+            "٢١ يونيو ٢٠٢٥ — انطلق أربعة رواد فضاء إلى أعماق الفضاء",
+            "كمين على القمر — اجمع الأكسجين وأصلح السفينة",
+            "١٠ كواكب، ٥٠ مرحلة، ٨ أبطال وزعماء كونيون أقوياء",
+            "طور القصة، البقاء اللانهائي ومبارزة الذكاء الاصطناعي!"
+        )
+        AppLanguage.PERSIAN -> listOf(
             "۲۱ ژوئن ۲۰۲۵ — پرتاب چهار فضانورد دلیر به اعماق منظومه شمسی",
             "حمله ناگهانی ستاره‌زادگان — جمع‌آوری اکسیژن و بازیابی قطعات سفینه",
             "۱۰ سیاره، ۵۰ مرحله متمایز، ۸ قهرمان و باس‌های چندفاز کیهانی",
@@ -381,118 +522,175 @@ private fun CinematicTrailerView(
         )
     }
 
-    Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(14.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .weight(1.35f)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(20.dp))
-                .border(1.5.dp, Color(0xFFC47B42).copy(alpha = 0.7f), RoundedCornerShape(20.dp))
-                .background(Color(0xFF09090D))
-        ) {
-            AssetSpriteImage(
-                bitmapRegistry = bitmapRegistry,
-                assetPath = slidePaths[sceneIndex],
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                maxDimension = 768,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .alpha(0.65f)
-            )
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val stacked = maxWidth < 520.dp
 
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                for (i in 0 until 24) {
-                    val t = ((progress * 3f + i * 0.13f) % 1f)
-                    val x = (1f - t) * size.width
-                    val y = ((i * 73) % size.height.toInt().coerceAtLeast(1)).toFloat()
-                    drawLine(
-                        color = (if (i % 2 == 0) Color(0xFFC47B42) else Color(0xFFF5E6C8)).copy(alpha = 0.65f),
-                        start = Offset(x, y),
-                        end = Offset(x + 36f, y),
-                        strokeWidth = 2.5f
+        val previewStage: @Composable (Modifier) -> Unit = { boxMod ->
+            Box(
+                modifier = boxMod
+                    .clip(RoundedCornerShape(20.dp))
+                    .border(1.5.dp, Color(0xFFC47B42).copy(alpha = 0.7f), RoundedCornerShape(20.dp))
+                    .background(Color(0xFF09090D))
+            ) {
+                AssetSpriteImage(
+                    bitmapRegistry = bitmapRegistry,
+                    assetPath = slidePaths[sceneIndex],
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    maxDimension = 768,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(0.65f)
+                )
+
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    for (i in 0 until 24) {
+                        val t = ((progress * 3f + i * 0.13f) % 1f)
+                        val x = (1f - t) * size.width
+                        val y = ((i * 73) % size.height.toInt().coerceAtLeast(1)).toFloat()
+                        drawLine(
+                            color = (if (i % 2 == 0) Color(0xFFC47B42) else Color(0xFFF5E6C8)).copy(alpha = 0.65f),
+                            start = Offset(x, y),
+                            end = Offset(x + 36f, y),
+                            strokeWidth = 2.5f
+                        )
+                    }
+                    val cx = size.width / 2f
+                    val cy = size.height / 2f
+                    val r = 68f + sin(progress * 12f) * 14f
+                    drawCircle(
+                        color = Color(0xFFE09658).copy(alpha = pulse * 0.35f),
+                        radius = r,
+                        center = Offset(cx + cos(progress * 6f) * 40f, cy)
                     )
                 }
-                val cx = size.width / 2f
-                val cy = size.height / 2f
-                val r = 68f + sin(progress * 12f) * 14f
-                drawCircle(
-                    color = Color(0xFFE09658).copy(alpha = pulse * 0.35f),
-                    radius = r,
-                    center = Offset(cx + cos(progress * 6f) * 40f, cy)
-                )
-            }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent, Color(0xE609090D))
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color(0xE609090D))
+                            )
                         )
-                    )
-                    .padding(16.dp),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(14.dp),
+                    contentAlignment = Alignment.BottomCenter
                 ) {
-                    Text(
-                        text = captions[sceneIndex],
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFF5E6C8),
-                        textAlign = TextAlign.Center
-                    )
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = captions[sceneIndex],
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFF5E6C8),
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
         }
 
-        Column(
-            modifier = Modifier.weight(0.65f),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        val playButton: @Composable (Modifier) -> Unit = { mod ->
             Button(
                 onClick = { playing = !playing },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
+                modifier = mod
+                    .heightIn(min = 48.dp)
                     .testTag("trailer_play_pause_button")
             ) {
                 Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    if (playing) {
-                        if (language == AppLanguage.ENGLISH) "Pause Preview" else "توقف پیش‌نمایش"
+                    text = if (playing) {
+                        when (language) {
+                            AppLanguage.ENGLISH -> "Pause Preview"
+                            AppLanguage.ARABIC -> "إيقاف المعاينة"
+                            AppLanguage.PERSIAN -> "توقف پیش‌نمایش"
+                        }
                     } else {
-                        if (language == AppLanguage.ENGLISH) "Play Preview" else "پخش پیش‌نمایش"
-                    }
+                        when (language) {
+                            AppLanguage.ENGLISH -> "Play Preview"
+                            AppLanguage.ARABIC -> "تشغيل المعاينة"
+                            AppLanguage.PERSIAN -> "پخش پیش‌نمایش"
+                        }
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
+        }
+
+        val replayButton: @Composable (Modifier) -> Unit = { mod ->
             OutlinedButton(
                 onClick = {
                     progress = 0f
                     playing = true
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
+                modifier = mod
+                    .heightIn(min = 48.dp)
                     .testTag("trailer_restart_button")
             ) {
                 Icon(Icons.Default.Replay, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text(if (language == AppLanguage.ENGLISH) "Replay" else "پخش از ابتدا")
+                Text(
+                    text = when (language) {
+                        AppLanguage.ENGLISH -> "Replay"
+                        AppLanguage.ARABIC -> "إعادة التشغيل"
+                        AppLanguage.PERSIAN -> "پخش از ابتدا"
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        if (stacked) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                previewStage(
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    playButton(Modifier.weight(1f))
+                    replayButton(Modifier.weight(1f))
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                previewStage(
+                    Modifier
+                        .weight(1.35f)
+                        .fillMaxHeight()
+                )
+                Column(
+                    modifier = Modifier.weight(0.65f),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    playButton(Modifier.fillMaxWidth())
+                    replayButton(Modifier.fillMaxWidth())
+                }
             }
         }
     }

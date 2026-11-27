@@ -16,13 +16,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,10 +59,10 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Crash-proof cutscene video player backed by Jetpack Media3 ExoPlayer + PlayerView (texture_view).
+ * Crash-proof mandatory cutscene video player backed by Jetpack Media3 ExoPlayer + PlayerView (texture_view).
  * Plays APK assets directly via asset:/// URI with automatic cached-file retry on decode/source error,
  * pauses/resumes cleanly with Android Lifecycle, never calls onCompleted() prematurely on setup race,
- * and guarantees single-shot completion upon real playback end, user skip, or hard ceiling.
+ * and guarantees single-shot completion upon real playback end or safe error recovery (no skip allowed).
  */
 @OptIn(UnstableApi::class)
 @Composable
@@ -73,8 +70,7 @@ fun AssetVideoPlayer(
     assetPath: String,
     statusLabel: String,
     onCompleted: () -> Unit,
-    modifier: Modifier = Modifier,
-    skipLabel: String? = null
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val appContext = remember(context) { context.applicationContext }
@@ -311,7 +307,7 @@ fun AssetVideoPlayer(
             }
 
             if (!reachedReady) {
-                if (nowMs - prepStartMs > 6500L) {
+                if (nowMs - prepStartMs > 8000L) {
                     Log.w("AssetVideoPlayer", "Prep watchdog expired for $normalizedAssetPath")
                     completeOnceSafely()
                     break
@@ -340,8 +336,8 @@ fun AssetVideoPlayer(
                 break
             }
 
-            val stalledAfterReady = nowMs - lastAdvanceMs > 5000L
-            val maxCeilingMs = if (dur > 0L) dur + 8000L else 22000L
+            val stalledAfterReady = nowMs - lastAdvanceMs > 6000L
+            val maxCeilingMs = if (dur > 0L) dur + 10000L else 28000L
             val exceededCeiling = nowMs - prepStartMs > maxCeilingMs
             if (stalledAfterReady || exceededCeiling) {
                 Log.w("AssetVideoPlayer", "Playback watchdog completed cutscene $normalizedAssetPath (stalled=$stalledAfterReady, ceiling=$exceededCeiling)")
@@ -396,32 +392,9 @@ fun AssetVideoPlayer(
                 .align(Alignment.BottomCenter)
                 .safeDrawingPadding()
                 .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (!skipLabel.isNullOrBlank()) {
-                OutlinedButton(
-                    onClick = { completeOnceSafely() },
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color(0xCC09090D),
-                        contentColor = Color(0xFFF5E6C8)
-                    ),
-                    border = BorderStroke(1.dp, Color(0xAAC47B42)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .heightIn(min = 48.dp)
-                        .testTag("cutscene_skip_button")
-                ) {
-                    Text(
-                        text = skipLabel,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            } else {
-                Box(modifier = Modifier)
-            }
-
             Surface(
                 color = Color(0xCC09090D),
                 border = BorderStroke(1.dp, Color(0x88C47B42)),

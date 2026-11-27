@@ -5,17 +5,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -56,8 +61,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.astronautstories.assets_loader.NativeBitmapRegistry
 import com.example.astronautstories.data.local.PlayerProgressEntity
 import com.example.astronautstories.domain.model.ShopCategory
@@ -87,18 +92,28 @@ fun ShopAndSkillsScreen(
     var selectedTab by remember { mutableIntStateOf(initialTab.coerceIn(0, 1)) }
     var selectedCategory by remember { mutableStateOf<ShopCategory?>(null) }
     var shopPage by remember { mutableIntStateOf(0) }
+    var skillPage by remember { mutableIntStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(if (selectedTab == 0) strings.shopTitle else strings.skillsTitle) },
+                title = {
+                    Text(
+                        text = if (selectedTab == 0) strings.shopTitle else strings.skillsTitle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
                 navigationIcon = {
                     IconButton(
                         onClick = onBack,
-                        modifier = Modifier.testTag("shop_back_button")
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("shop_back_button")
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = strings.backBtn)
                     }
@@ -109,6 +124,7 @@ fun ShopAndSkillsScreen(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.secondary,
+                        maxLines = 1,
                         modifier = Modifier.padding(end = 16.dp)
                     )
                 }
@@ -124,14 +140,26 @@ fun ShopAndSkillsScreen(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text(strings.shopTitle, maxLines = 1) },
+                    text = {
+                        Text(
+                            text = strings.shopTitle,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
                     icon = { Icon(Icons.Default.ShoppingBag, contentDescription = null) },
                     modifier = Modifier.testTag("tab_shop")
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("${strings.skillsTitle} (${progress.skillPoints})", maxLines = 1) },
+                    text = {
+                        Text(
+                            text = "${strings.skillsTitle} (${progress.skillPoints})",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
                     icon = { Icon(Icons.Default.Bolt, contentDescription = null) },
                     modifier = Modifier.testTag("tab_skills")
                 )
@@ -142,186 +170,257 @@ fun ShopAndSkillsScreen(
                     if (selectedCategory == null) StoreAndAchievements.shopItems
                     else StoreAndAchievements.shopItems.filter { it.category == selectedCategory }
                 }
-                val totalPages = ((filteredItems.size + 3) / 4).coerceAtLeast(1)
-                val clampedPage = shopPage.coerceIn(0, totalPages - 1)
-                val pageItems = filteredItems.drop(clampedPage * 4).take(4)
 
-                Column(
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    Row(
+                    val isWideHeader = maxWidth >= 660.dp
+                    val colCount = if (maxWidth >= 560.dp) 2 else 1
+                    val rowCount = when {
+                        colCount == 2 && maxHeight >= 295.dp -> 2
+                        colCount == 1 && maxHeight >= 315.dp -> 2
+                        else -> 1
+                    }
+                    val pageSize = colCount * rowCount
+                    val totalPages = ((filteredItems.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+                    val clampedPage = shopPage.coerceIn(0, totalPages - 1)
+                    val pageItems = filteredItems.drop(clampedPage * pageSize).take(pageSize)
+
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .fillMaxSize()
+                            .widthIn(max = 1120.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .weight(0.95f)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(12.dp))
-                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                        ) {
-                            AssetSpriteImage(
-                                bitmapRegistry = bitmapRegistry,
-                                assetPath = "images/Inside_the_ship.jpg",
-                                contentDescription = strings.shopTitle,
-                                contentScale = ContentScale.Crop,
-                                maxDimension = 512,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                        val boosterBanner: @Composable (Modifier) -> Unit = { bannerMod ->
                             Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Brush.horizontalGradient(listOf(Color(0xD809090D), Color(0x9909090D))))
-                                    .padding(horizontal = 10.dp),
-                                contentAlignment = Alignment.CenterStart
+                                modifier = bannerMod
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                                        RoundedCornerShape(12.dp)
+                                    )
                             ) {
-                                Text(
-                                    text = "💊 ${progress.medkitBoosters}  •  🔋 ${progress.ammoBoosters}  •  🛡 ${progress.shieldBoosters}",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = Color(0xFFF5E6C8),
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1
+                                AssetSpriteImage(
+                                    bitmapRegistry = bitmapRegistry,
+                                    assetPath = "images/Inside_the_ship.jpg",
+                                    contentDescription = strings.shopTitle,
+                                    contentScale = ContentScale.Crop,
+                                    maxDimension = 512,
+                                    modifier = Modifier.matchParentSize()
                                 )
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(Color(0xD809090D), Color(0x9909090D))
+                                            )
+                                        )
+                                        .padding(horizontal = 12.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    Text(
+                                        text = "💊 ${progress.medkitBoosters}  •  🔋 ${progress.ammoBoosters}  •  🛡 ${progress.shieldBoosters}",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = Color(0xFFF5E6C8),
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
 
-                        Row(
-                            modifier = Modifier.weight(1.3f),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CompactFilterPill(
-                                label = if (language == AppLanguage.ENGLISH) "All" else "همه",
-                                selected = selectedCategory == null,
-                                tag = "shop_filter_all",
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    selectedCategory = null
-                                    shopPage = 0
-                                }
-                            )
-                            ShopCategory.entries.forEach { cat ->
-                                val label = when (cat) {
-                                    ShopCategory.WEAPONS -> if (language == AppLanguage.ENGLISH) "Weapons" else "سلاح‌ها"
-                                    ShopCategory.HEROES -> if (language == AppLanguage.ENGLISH) "Heroes" else "قهرمان‌ها"
-                                    ShopCategory.BOOSTERS -> if (language == AppLanguage.ENGLISH) "Boosts" else "تقویت‌گر"
-                                }
+                        val filterPillsRow: @Composable (Modifier) -> Unit = { pillsMod ->
+                            Row(
+                                modifier = pillsMod,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 CompactFilterPill(
-                                    label = label,
-                                    selected = selectedCategory == cat,
-                                    tag = "shop_filter_${cat.name}",
+                                    label = when (language) {
+                                        AppLanguage.ENGLISH -> "All"
+                                        AppLanguage.ARABIC -> "الكل"
+                                        AppLanguage.PERSIAN -> "همه"
+                                    },
+                                    selected = selectedCategory == null,
+                                    tag = "shop_filter_all",
                                     modifier = Modifier.weight(1f),
                                     onClick = {
-                                        selectedCategory = cat
+                                        selectedCategory = null
                                         shopPage = 0
                                     }
                                 )
+                                ShopCategory.entries.forEach { cat ->
+                                    val label = when (cat) {
+                                        ShopCategory.WEAPONS -> when (language) {
+                                            AppLanguage.ENGLISH -> "Weapons"
+                                            AppLanguage.ARABIC -> "الأسلحة"
+                                            AppLanguage.PERSIAN -> "سلاح‌ها"
+                                        }
+                                        ShopCategory.HEROES -> when (language) {
+                                            AppLanguage.ENGLISH -> "Heroes"
+                                            AppLanguage.ARABIC -> "الأبطال"
+                                            AppLanguage.PERSIAN -> "قهرمان‌ها"
+                                        }
+                                        ShopCategory.BOOSTERS -> when (language) {
+                                            AppLanguage.ENGLISH -> "Boosts"
+                                            AppLanguage.ARABIC -> "المعززات"
+                                            AppLanguage.PERSIAN -> "تقویت‌گر"
+                                        }
+                                    }
+                                    CompactFilterPill(
+                                        label = label,
+                                        selected = selectedCategory == cat,
+                                        tag = "shop_filter_${cat.name}",
+                                        modifier = Modifier.weight(1f),
+                                        onClick = {
+                                            selectedCategory = cat
+                                            shopPage = 0
+                                        }
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    // Fixed 2x2 Grid for Shop Items
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val rows = pageItems.chunked(2)
-                        for (r in 0 until 2) {
-                            val pair = rows.getOrNull(r) ?: emptyList()
+                        if (isWideHeader) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                for (c in 0 until 2) {
-                                    val item = pair.getOrNull(c)
-                                    if (item == null) {
-                                        Spacer(Modifier.weight(1f))
-                                    } else {
-                                        val isBooster = item.category == ShopCategory.BOOSTERS
-                                        val isOwned = !isBooster && ownedItemIds.contains(item.id)
-                                        val isEquipped = (item.weaponType != null && progress.equippedWeaponId == item.weaponType.id) ||
-                                            (item.heroId != null && progress.selectedHeroId == item.heroId.id)
+                                boosterBanner(Modifier.weight(0.95f))
+                                filterPillsRow(Modifier.weight(1.3f))
+                            }
+                        } else {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                boosterBanner(Modifier.fillMaxWidth())
+                                filterPillsRow(Modifier.fillMaxWidth())
+                            }
+                        }
 
-                                        Card(
-                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxHeight()
-                                        ) {
-                                            Row(
+                        // Zero-Scroll Adaptive Grid
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val rows = pageItems.chunked(colCount)
+                            for (r in 0 until rowCount) {
+                                val rowItems = rows.getOrNull(r) ?: emptyList()
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    for (c in 0 until colCount) {
+                                        val item = rowItems.getOrNull(c)
+                                        if (item == null) {
+                                            Spacer(Modifier.weight(1f))
+                                        } else {
+                                            val isBooster = item.category == ShopCategory.BOOSTERS
+                                            val isOwned = !isBooster && ownedItemIds.contains(item.id)
+                                            val isEquipped = (item.weaponType != null && progress.equippedWeaponId == item.weaponType.id) ||
+                                                (item.heroId != null && progress.selectedHeroId == item.heroId.id)
+
+                                            Card(
+                                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                                                shape = RoundedCornerShape(14.dp),
                                                 modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                    .weight(1f)
+                                                    .fillMaxHeight()
                                             ) {
-                                                UniformAssetBadge(
-                                                    bitmapRegistry = bitmapRegistry,
-                                                    assetPath = shopItemAssetPath(item),
-                                                    contentDescription = item.localizedTitle(language.code),
-                                                    sizeDp = 46.dp,
-                                                    cornerRadius = 10.dp,
-                                                    innerPadding = 4.dp
-                                                )
-                                                Column(
-                                                    modifier = Modifier.weight(1f),
-                                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                                                 ) {
-                                                    Text(
-                                                        text = item.localizedTitle(language.code),
-                                                        style = MaterialTheme.typography.titleSmall.copy(fontSize = 12.sp, lineHeight = 15.sp),
-                                                        fontWeight = FontWeight.Bold,
-                                                        maxLines = 2
+                                                    UniformAssetBadge(
+                                                        bitmapRegistry = bitmapRegistry,
+                                                        assetPath = shopItemAssetPath(item),
+                                                        contentDescription = item.localizedTitle(language.code),
+                                                        sizeDp = 46.dp,
+                                                        cornerRadius = 10.dp,
+                                                        innerPadding = 4.dp
                                                     )
-                                                    Text(
-                                                        text = item.descFa,
-                                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.5.sp, lineHeight = 14.sp),
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        maxLines = 2
-                                                    )
-                                                }
-                                                if (isEquipped) {
-                                                    FilledTonalButton(
-                                                        onClick = {},
-                                                        enabled = false,
-                                                        contentPadding = PaddingValues(horizontal = 10.dp),
-                                                        modifier = Modifier.height(44.dp).testTag("shop_btn_${item.id}")
-                                                    ) {
-                                                        Text(strings.equippedLabel, style = MaterialTheme.typography.labelMedium, maxLines = 1)
-                                                    }
-                                                } else {
-                                                    Button(
-                                                        onClick = {
-                                                            onPurchaseOrEquip(item) { ok ->
-                                                                if (!ok) {
-                                                                    scope.launch {
-                                                                        snackbarHostState.showSnackbar(
-                                                                            if (language == AppLanguage.ENGLISH) "Not enough crystals!"
-                                                                            else "کریستال کافی نیست!"
-                                                                        )
-                                                                    }
-                                                                }
-                                                            }
-                                                        },
-                                                        contentPadding = PaddingValues(horizontal = 10.dp),
-                                                        modifier = Modifier.height(44.dp).testTag("shop_btn_${item.id}")
+                                                    Column(
+                                                        modifier = Modifier.weight(1f),
+                                                        verticalArrangement = Arrangement.spacedBy(2.dp)
                                                     ) {
                                                         Text(
-                                                            text = if (isOwned) strings.equipBtn else "${item.priceCrystals}💎",
-                                                            style = MaterialTheme.typography.labelMedium,
-                                                            maxLines = 1
+                                                            text = item.localizedTitle(language.code),
+                                                            style = MaterialTheme.typography.titleSmall,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 2,
+                                                            overflow = TextOverflow.Ellipsis
                                                         )
+                                                        Text(
+                                                            text = item.descFa,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            maxLines = 2,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                    if (isEquipped) {
+                                                        FilledTonalButton(
+                                                            onClick = {},
+                                                            enabled = false,
+                                                            contentPadding = PaddingValues(horizontal = 12.dp),
+                                                            modifier = Modifier
+                                                                .heightIn(min = 48.dp)
+                                                                .testTag("shop_btn_${item.id}")
+                                                        ) {
+                                                            Text(
+                                                                text = strings.equippedLabel,
+                                                                style = MaterialTheme.typography.labelMedium,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                        }
+                                                    } else {
+                                                        Button(
+                                                            onClick = {
+                                                                onPurchaseOrEquip(item) { ok ->
+                                                                    if (!ok) {
+                                                                        scope.launch {
+                                                                            snackbarHostState.showSnackbar(
+                                                                                when (language) {
+                                                                                    AppLanguage.ENGLISH -> "Not enough crystals!"
+                                                                                    AppLanguage.ARABIC -> "البلورات غير كافية!"
+                                                                                    AppLanguage.PERSIAN -> "کریستال کافی نیست!"
+                                                                                }
+                                                                            )
+                                                                        }
+                                                                    }
+                                                                }
+                                                            },
+                                                            contentPadding = PaddingValues(horizontal = 12.dp),
+                                                            modifier = Modifier
+                                                                .heightIn(min = 48.dp)
+                                                                .testTag("shop_btn_${item.id}")
+                                                        ) {
+                                                            Text(
+                                                                text = if (isOwned) strings.equipBtn else "${item.priceCrystals}💎",
+                                                                style = MaterialTheme.typography.labelMedium,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
@@ -330,131 +429,217 @@ fun ShopAndSkillsScreen(
                                 }
                             }
                         }
-                    }
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = { if (clampedPage > 0) shopPage = clampedPage - 1 },
-                            enabled = clampedPage > 0,
-                            modifier = Modifier.size(48.dp).testTag("shop_prev_page")
+                        // Button-Driven Pagination Bar
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous")
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            text = "${clampedPage + 1} / $totalPages",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        IconButton(
-                            onClick = { if (clampedPage < totalPages - 1) shopPage = clampedPage + 1 },
-                            enabled = clampedPage < totalPages - 1,
-                            modifier = Modifier.size(48.dp).testTag("shop_next_page")
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next")
+                            IconButton(
+                                onClick = { if (clampedPage > 0) shopPage = clampedPage - 1 },
+                                enabled = clampedPage > 0,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .testTag("shop_prev_page")
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous")
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                text = "${clampedPage + 1} / $totalPages",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            IconButton(
+                                onClick = { if (clampedPage < totalPages - 1) shopPage = clampedPage + 1 },
+                                enabled = clampedPage < totalPages - 1,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .testTag("shop_next_page")
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next")
+                            }
                         }
                     }
                 }
             } else {
-                // Fixed 3x2 Grid for ALL 6 Skills
-                Column(
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    SkillType.entries.chunked(3).forEach { rowSkills ->
-                        Row(
+                    val colCount = when {
+                        maxWidth >= 720.dp -> 3
+                        maxWidth >= 480.dp -> 2
+                        else -> 1
+                    }
+                    val rowCount = if (maxHeight >= 310.dp) 2 else 1
+                    val pageSize = colCount * rowCount
+                    val allSkills = SkillType.entries
+                    val totalPages = ((allSkills.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+                    val clampedPage = skillPage.coerceIn(0, totalPages - 1)
+                    val pageSkills = allSkills.drop(clampedPage * pageSize).take(pageSize)
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .widthIn(max = 1120.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            rowSkills.forEach { skill ->
-                                val lvl = skillLevels[skill.id] ?: 0
-                                val maxed = lvl >= skill.maxLevel
-                                Card(
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                            val rows = pageSkills.chunked(colCount)
+                            for (r in 0 until rowCount) {
+                                val rowSkills = rows.getOrNull(r) ?: emptyList()
+                                Row(
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(10.dp),
-                                        verticalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            UniformAssetBadge(
-                                                bitmapRegistry = bitmapRegistry,
-                                                assetPath = skillAssetPath(skill),
-                                                sizeDp = 38.dp,
-                                                cornerRadius = 9.dp,
-                                                innerPadding = 4.dp
-                                            )
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = "${skill.localizedTitle(language.code)} ($lvl/${skill.maxLevel})",
-                                                    style = MaterialTheme.typography.titleSmall.copy(fontSize = 12.sp, lineHeight = 14.sp),
-                                                    fontWeight = FontWeight.Bold,
-                                                    maxLines = 2
-                                                )
-                                                Text(
-                                                    text = skill.descFa,
-                                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, lineHeight = 13.sp),
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    maxLines = 2
-                                                )
-                                            }
-                                        }
-                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            LinearProgressIndicator(
-                                                progress = { (lvl.toFloat() / skill.maxLevel.toFloat()).coerceIn(0f, 1f) },
+                                    for (c in 0 until colCount) {
+                                        val skill = rowSkills.getOrNull(c)
+                                        if (skill == null) {
+                                            Spacer(Modifier.weight(1f))
+                                        } else {
+                                            val lvl = skillLevels[skill.id] ?: 0
+                                            val maxed = lvl >= skill.maxLevel
+                                            Card(
+                                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                                                shape = RoundedCornerShape(14.dp),
                                                 modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(6.dp)
-                                                    .clip(RoundedCornerShape(3.dp))
-                                            )
-                                            Button(
-                                                onClick = {
-                                                    onUpgradeSkill(skill) { ok ->
-                                                        if (!ok) {
-                                                            scope.launch {
-                                                                snackbarHostState.showSnackbar(
-                                                                    if (language == AppLanguage.ENGLISH) "No Skill Points left or maxed!"
-                                                                    else "امتیاز مهارت کافی نیست یا به حداکثر رسیده است!"
-                                                                )
-                                                            }
+                                                    .weight(1f)
+                                                    .fillMaxHeight()
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .padding(12.dp),
+                                                    verticalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                                    ) {
+                                                        UniformAssetBadge(
+                                                            bitmapRegistry = bitmapRegistry,
+                                                            assetPath = skillAssetPath(skill),
+                                                            contentDescription = skill.localizedTitle(language.code),
+                                                            sizeDp = 40.dp,
+                                                            cornerRadius = 10.dp,
+                                                            innerPadding = 4.dp
+                                                        )
+                                                        Column(
+                                                            modifier = Modifier.weight(1f),
+                                                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                                        ) {
+                                                            Text(
+                                                                text = "${skill.localizedTitle(language.code)} ($lvl/${skill.maxLevel})",
+                                                                style = MaterialTheme.typography.titleSmall,
+                                                                fontWeight = FontWeight.Bold,
+                                                                maxLines = 2,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                            Text(
+                                                                text = skill.descFa,
+                                                                style = MaterialTheme.typography.bodySmall,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                maxLines = 2,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
                                                         }
                                                     }
-                                                },
-                                                enabled = !maxed && progress.skillPoints > 0,
-                                                contentPadding = PaddingValues(horizontal = 8.dp),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(40.dp)
-                                                    .testTag("skill_upgrade_${skill.id}")
-                                            ) {
-                                                Text(if (maxed) "MAX" else strings.upgradeBtn)
+                                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                        LinearProgressIndicator(
+                                                            progress = { (lvl.toFloat() / skill.maxLevel.toFloat()).coerceIn(0f, 1f) },
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .height(6.dp)
+                                                                .clip(RoundedCornerShape(3.dp))
+                                                        )
+                                                        Button(
+                                                            onClick = {
+                                                                onUpgradeSkill(skill) { ok ->
+                                                                    if (!ok) {
+                                                                        scope.launch {
+                                                                            snackbarHostState.showSnackbar(
+                                                                                when (language) {
+                                                                                    AppLanguage.ENGLISH -> "No Skill Points left or maxed!"
+                                                                                    AppLanguage.ARABIC -> "لا توجد نقاط مهارة كافية أو وصلت للحد الأقصى!"
+                                                                                    AppLanguage.PERSIAN -> "امتیاز مهارت کافی نیست یا به حداکثر رسیده است!"
+                                                                                }
+                                                                            )
+                                                                        }
+                                                                    }
+                                                                }
+                                                            },
+                                                            enabled = !maxed && progress.skillPoints > 0,
+                                                            contentPadding = PaddingValues(horizontal = 12.dp),
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .heightIn(min = 48.dp)
+                                                                .testTag("skill_upgrade_${skill.id}")
+                                                        ) {
+                                                            Text(
+                                                                text = if (maxed) "MAX" else strings.upgradeBtn,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
-                            repeat(3 - rowSkills.size) { Spacer(Modifier.weight(1f)) }
+                        }
+
+                        if (totalPages > 1) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 48.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = { if (clampedPage > 0) skillPage = clampedPage - 1 },
+                                    enabled = clampedPage > 0,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .testTag("skill_prev_page")
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous")
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = "${clampedPage + 1} / $totalPages",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                IconButton(
+                                    onClick = { if (clampedPage < totalPages - 1) skillPage = clampedPage + 1 },
+                                    enabled = clampedPage < totalPages - 1,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .testTag("skill_next_page")
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next")
+                                }
+                            }
                         }
                     }
                 }
@@ -480,20 +665,24 @@ private fun CompactFilterPill(
             if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
         ),
         modifier = modifier
-            .height(44.dp)
+            .heightIn(min = 48.dp)
             .testTag(tag)
     ) {
         Box(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 8.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                 color = if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
-                maxLines = 1
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

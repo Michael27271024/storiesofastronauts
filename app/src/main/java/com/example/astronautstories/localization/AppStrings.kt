@@ -46,7 +46,6 @@ data class GameStrings(
     val exitToMapBtn: String,
     val backBtn: String,
     val nextBtn: String,
-    val skipBtn: String,
     val buyBtn: String,
     val equipBtn: String,
     val equippedLabel: String,
@@ -54,6 +53,8 @@ data class GameStrings(
     val shareBtn: String,
     val stageLockedMsg: String,
     val victoryTitle: String,
+    val gameFinaleTitle: String,
+    val gameFinaleSubtitle: String,
     val gameOverTitle: String,
     val retryBtn: String,
     val nextStageBtn: String,
@@ -75,7 +76,16 @@ data class GameStrings(
     val leftHandedLabel: String,
     val reminderNotifLabel: String,
     val unlockedLabel: String,
-    val lockedLabel: String
+    val lockedLabel: String,
+    val creditsSectionTitle: String,
+    val creatorLabel: String,
+    val creatorNames: String,
+    val officialWebsiteLabel: String,
+    val officialWebsiteUrl: String,
+    val telegramChannelLabel: String,
+    val telegramChannelUrl: String,
+    val copyrightTitle: String,
+    val copyrightText: String
 )
 
 object StringProvider {
@@ -118,7 +128,6 @@ object StringProvider {
         exitToMapBtn = "بازگشت به نقشه",
         backBtn = "بازگشت",
         nextBtn = "بعدی",
-        skipBtn = "رد کردن",
         buyBtn = "خرید",
         equipBtn = "تجهیز",
         equippedLabel = "فعال",
@@ -126,6 +135,8 @@ object StringProvider {
         shareBtn = "اشتراک‌گذاری",
         stageLockedMsg = "این مرحله هنوز قفل است. مراحل قبلی را با موفقیت کامل کنید!",
         victoryTitle = "مأموریت با موفقیت انجام شد!",
+        gameFinaleTitle = "تبریک فرمانده! بازی کامل به پایان رسید!",
+        gameFinaleSubtitle = "هر ۱۰ سیاره و ۵۰ مرحله حماسی فتح شد و فضانوردان با موفقیت به زمین بازگشتند.",
         gameOverTitle = "سفینه سقوط کرد!",
         retryBtn = "تلاش دوباره",
         nextStageBtn = "مرحله بعدی",
@@ -147,7 +158,16 @@ object StringProvider {
         leftHandedLabel = "چیدمان چپ‌دست کنترل‌ها",
         reminderNotifLabel = "یادآور روزانه مأموریت",
         unlockedLabel = "باز شده",
-        lockedLabel = "قفل"
+        lockedLabel = "قفل",
+        creditsSectionTitle = "سازندگان و ارتباط رسمی",
+        creatorLabel = "سازنده",
+        creatorNames = "امیر عباسیان و اوستا حسن زاده",
+        officialWebsiteLabel = "وبسایت رسمی",
+        officialWebsiteUrl = "storiesofastronauts.lovable.app",
+        telegramChannelLabel = "کانال رسمی تلگرامی",
+        telegramChannelUrl = "t.me/storiesofastronauts",
+        copyrightTitle = "حق کپی‌رایت",
+        copyrightText = "© ۲۰۲۵ داستان‌های فضانوردها — تمامی حقوق این اثر متعلق به امیر عباسیان و اوستا حسن زاده است."
     )
 
     private val englishStrings = GameStrings(
@@ -183,7 +203,6 @@ object StringProvider {
         exitToMapBtn = "Return to Map",
         backBtn = "Back",
         nextBtn = "Next",
-        skipBtn = "Skip",
         buyBtn = "Buy",
         equipBtn = "Equip",
         equippedLabel = "Equipped",
@@ -191,6 +210,8 @@ object StringProvider {
         shareBtn = "Share",
         stageLockedMsg = "This stage is still locked. Complete previous missions first!",
         victoryTitle = "Mission Accomplished!",
+        gameFinaleTitle = "Congratulations! Game Completed!",
+        gameFinaleSubtitle = "All 10 planets and 50 epic stages conquered. Welcome back to Earth!",
         gameOverTitle = "Mission Failed!",
         retryBtn = "Try Again",
         nextStageBtn = "Next Stage",
@@ -212,7 +233,16 @@ object StringProvider {
         leftHandedLabel = "Left-Handed Controls",
         reminderNotifLabel = "Daily Mission Reminder",
         unlockedLabel = "Unlocked",
-        lockedLabel = "Locked"
+        lockedLabel = "Locked",
+        creditsSectionTitle = "Creators & Official Links",
+        creatorLabel = "Creators",
+        creatorNames = "امیر عباسیان و اوستا حسن زاده (Amir Abbasian & Avesta Hasanzadeh)",
+        officialWebsiteLabel = "Official Website",
+        officialWebsiteUrl = "storiesofastronauts.lovable.app",
+        telegramChannelLabel = "Official Telegram",
+        telegramChannelUrl = "t.me/storiesofastronauts",
+        copyrightTitle = "Copyright",
+        copyrightText = "© 2025 Astronaut Stories — All rights reserved by Amir Abbasian & Avesta Hasanzadeh (امیر عباسیان و اوستا حسن زاده)."
     )
 
     private val arabicStrings = GameStrings(
@@ -248,7 +278,6 @@ object StringProvider {
         exitToMapBtn = "العودة للخريطة",
         backBtn = "رجوع",
         nextBtn = "التالي",
-        skipBtn = "تخطي",
         buyBtn = "شراء",
         equipBtn = "تجهيز",
         equippedLabel = "مجهّز",
@@ -256,6 +285,8 @@ object StringProvider {
         shareBtn = "مشاركة",
         stageLockedMsg = "هذه المرحلة ما زالت مقفلة. أكمل المراحل السابقة أولاً!",
         victoryTitle = "تمت المهمة بنجاح!",
+        gameFinaleTitle = "تهانينا أيها القائد! اكتملت اللعبة بنجاح!",
+        gameFinaleSubtitle = "تم اجتياز جميع الكواكب الـ١٠ والمراحل الـ٥٠ وعاد رواد الفضاء إلى الأرض بأمان.",
         gameOverTitle = "تحطمت السفينة!",
         retryBtn = "إعادة المحاولة",
         nextStageBtn = "المرحلة التالية",
@@ -277,6 +308,15 @@ object StringProvider {
         leftHandedLabel = "تحكم اليد اليسرى",
         reminderNotifLabel = "تذكير المهمة اليومي",
         unlockedLabel = "مفتوح",
-        lockedLabel = "مقفل"
+        lockedLabel = "مقفل",
+        creditsSectionTitle = "المطورون والروابط الرسمية",
+        creatorLabel = "المطور",
+        creatorNames = "امیر عباسیان و اوستا حسن زاده",
+        officialWebsiteLabel = "الموقع الرسمي",
+        officialWebsiteUrl = "storiesofastronauts.lovable.app",
+        telegramChannelLabel = "قناة تيليجرام الرسمية",
+        telegramChannelUrl = "t.me/storiesofastronauts",
+        copyrightTitle = "حقوق النشر",
+        copyrightText = "© ٢٠٢٥ قصص رواد الفضاء — جميع الحقوق محفوظة لـ أمير عباسیان وأوستا حسن زاده."
     )
 }

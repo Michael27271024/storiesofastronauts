@@ -9,13 +9,16 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -50,6 +53,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -67,6 +71,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -74,6 +79,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.astronautstories.assets_loader.AssetVideoPlayer
 import com.example.astronautstories.assets_loader.NativeBitmapRegistry
+import com.example.astronautstories.boss3d.Boss3DControlsOverlay
+import com.example.astronautstories.boss3d.Boss3DViewport
 import com.example.astronautstories.data.local.AppSettings
 import com.example.astronautstories.domain.model.GameCatalog
 import com.example.astronautstories.domain.model.GameMode
@@ -82,6 +89,7 @@ import com.example.astronautstories.engine.GameCanvasView
 import com.example.astronautstories.localization.AppLanguage
 import com.example.astronautstories.localization.GameStrings
 import com.example.astronautstories.ui.components.AssetSpriteImage
+import com.example.astronautstories.ui.components.CreditsAndCopyrightSection
 import com.example.astronautstories.ui.components.UniformAssetBadge
 import com.example.astronautstories.ui.viewmodel.GameArenaViewModel
 import kotlinx.coroutines.delay
@@ -124,7 +132,11 @@ fun GameArenaScreen(
     val nextNavigateGuard = remember(mode, stageNumber, sessionId) { AtomicBoolean(false) }
 
     val simState by arenaViewModel.simulationState.collectAsStateWithLifecycle()
+    val boss3DState by arenaViewModel.boss3DSimulationState.collectAsStateWithLifecycle()
     val sim = simState
+    val activeBoss3D = boss3DState?.takeIf {
+        mode == GameMode.STORY && it.stageDef.stageNumber == stageNumber
+    }
     val sessionMatchesTarget = isReady &&
         sim != null &&
         sim.mode == mode &&
@@ -204,7 +216,7 @@ fun GameArenaScreen(
     LaunchedEffect(transitionState, activeTransitionVideo, stageNumber, sessionId) {
         when (transitionState) {
             StoryTransitionState.PLAYING_VIDEO -> {
-                delay(26000L)
+                delay(60000L)
                 completeStoryStageTransition()
             }
             StoryTransitionState.NAVIGATING_NEXT -> {
@@ -226,7 +238,7 @@ fun GameArenaScreen(
             transitionState == StoryTransitionState.PLAYING_VIDEO ||
                 transitionState == StoryTransitionState.NAVIGATING_NEXT ||
                 activeTransitionVideo != null -> {
-                // Wait for active cutscene playback or stage navigation
+                // Wait for mandatory cutscene playback or stage navigation
             }
             sessionMatchesTarget && hud.phase == ArenaPhase.PLAYING -> {
                 arenaViewModel.togglePause(!isPaused)
@@ -242,7 +254,6 @@ fun GameArenaScreen(
         AssetVideoPlayer(
             assetPath = currentVideo,
             statusLabel = strings.autoVideoStatusLabel,
-            skipLabel = strings.skipBtn,
             onCompleted = { completeStoryStageTransition() }
         )
         return
@@ -278,13 +289,25 @@ fun GameArenaScreen(
                 arenaViewModel.updateViewportSize(size.width.toFloat(), size.height.toFloat())
             }
     ) {
-        // 60 FPS Horizontal Side-Scrolling Canvas World
-        GameCanvasView(
-            sim = activeSim,
-            frameTick = frameTick,
-            bitmapRegistry = bitmapRegistry,
-            modifier = Modifier.fillMaxSize()
-        )
+        // 3D OpenGL Boss Arena for Chapter Boss Stages (5,10,15,20,25,30,35,40,45,50),
+        // or 60 FPS Horizontal Side-Scrolling Canvas World for all other stages & modes
+        if (activeBoss3D != null) {
+            Boss3DViewport(
+                bossSim = activeBoss3D,
+                isPaused = isPaused || hud.phase == ArenaPhase.GAME_OVER,
+                onAimDrag = { yawDelta, pitchDelta ->
+                    arenaViewModel.addBoss3DAimDelta(yawDelta, pitchDelta)
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            GameCanvasView(
+                sim = activeSim,
+                frameTick = frameTick,
+                bitmapRegistry = bitmapRegistry,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         // Slim Landscape Top HUD Overlay
         Column(
@@ -308,14 +331,16 @@ fun GameArenaScreen(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.weight(1f).padding(end = 8.dp)
                     ) {
                         Text(
                             text = "❤ ${hud.health}/${hud.maxHealth}   🛡 ${hud.shield}   🔫 ${hud.ammo}",
                             style = MaterialTheme.typography.labelLarge,
                             color = Color(0xFFF5E6C8),
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = hud.objectiveText,
@@ -324,26 +349,30 @@ fun GameArenaScreen(
                                 lineHeight = 14.sp
                             ),
                             color = Color(0xFFE09658),
-                            maxLines = 2
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                     }
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
                             text = "${strings.scoreLabel}: ${hud.score}",
                             style = MaterialTheme.typography.labelLarge,
                             color = Color(0xFFF5E6C8),
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
                         )
                         Text(
                             text = if (mode == GameMode.ENDLESS) "${strings.waveLabel} ${hud.wave}"
                             else if (mode == GameMode.MULTIPLAYER) "VS ${hud.rivalScore}"
                             else "⏱ ${hud.timeRemainingSec}s",
                             style = MaterialTheme.typography.labelMedium,
-                            color = Color(0xFFC47B42)
+                            color = Color(0xFFC47B42),
+                            maxLines = 1
                         )
 
                         FilledTonalButton(
@@ -354,12 +383,13 @@ fun GameArenaScreen(
                             ),
                             border = BorderStroke(1.dp, Color(0x88C47B42)),
                             contentPadding = PaddingValues(horizontal = 10.dp),
-                            modifier = Modifier.height(40.dp).testTag("arena_autofire_button")
+                            modifier = Modifier.heightIn(min = 44.dp).testTag("arena_autofire_button")
                         ) {
                             Text(
                                 text = if (autoFire) "AUTO ON" else "AUTO",
                                 style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
                             )
                         }
 
@@ -406,8 +436,13 @@ fun GameArenaScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
+                            val bossTitleLabel = if (activeBoss3D != null) {
+                                "${activeBoss3D.spec.localizedTitle(settings.language.code)} (Phase ${hud.bossPhase}/${activeBoss3D.spec.phaseCount})"
+                            } else {
+                                "BOSS OVERLORD (Phase ${hud.bossPhase})"
+                            }
                             Text(
-                                text = "BOSS OVERLORD (Phase ${hud.bossPhase})",
+                                text = bossTitleLabel,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color(0xFFE05252),
                                 fontWeight = FontWeight.Bold
@@ -449,16 +484,27 @@ fun GameArenaScreen(
         }
 
         // Ergonomic Horizontal Landscape Two-Thumb Touch Controls
-        // Forced physical LTR layout so D-Pad stays Left (with true <- / -> arrows & physics)
-        // and Action buttons stay Right regardless of RTL/LTR UI language.
         if (hud.phase == ArenaPhase.PLAYING && !isPaused) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .safeDrawingPadding()
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
-            ) {
+            if (activeBoss3D != null) {
+                Boss3DControlsOverlay(
+                    specialReadyRatio = hud.specialReadyRatio,
+                    leftHandedControls = settings.leftHandedControls,
+                    hapticsEnabled = settings.hapticsEnabled,
+                    onMoveChanged = { mx, my -> arenaViewModel.updateBoss3DMove(mx, my) },
+                    onJumpChanged = { down -> arenaViewModel.updateTouchInput { it.copy(jump = down) } },
+                    onShootChanged = { down -> arenaViewModel.updateTouchInput { it.copy(shoot = down) } },
+                    onDashTriggered = { arenaViewModel.triggerBoss3DDash() },
+                    onSpecialTriggered = { arenaViewModel.triggerSpecial() },
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .safeDrawingPadding()
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                     val dpadCluster: @Composable () -> Unit = {
                         Row(
@@ -568,6 +614,7 @@ fun GameArenaScreen(
                         }
                     }
                 }
+            }
             }
         }
 
@@ -679,97 +726,116 @@ fun GameArenaScreen(
             hud.phase == ArenaPhase.VICTORY || hud.phase == ArenaPhase.GAME_OVER -> {
                 val won = hud.phase == ArenaPhase.VICTORY
                 val accuracy = if (hud.shotsFired > 0) ((hud.shotsHit * 100) / hud.shotsFired).coerceIn(0, 100) else 100
+                val isFullGameFinale = won &&
+                    mode == GameMode.STORY &&
+                    stageNumber == GameCatalog.TOTAL_STAGES &&
+                    transitionState == StoryTransitionState.FINISHED_FINALE
                 val isAutoStoryTransition = won &&
                     mode == GameMode.STORY &&
                     transitionState != StoryTransitionState.FINISHED_FINALE &&
                     (stageNumber < GameCatalog.TOTAL_STAGES || activeSim.stageDef.transitionVideoAsset != null)
 
-                ArenaModalCard {
-                    if (won) {
-                        AssetSpriteImage(
-                            bitmapRegistry = bitmapRegistry,
-                            assetPath = "images/astronauts_happy.png",
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            maxDimension = 256,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(68.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                        )
-                    }
-                    Text(
-                        text = if (won) strings.victoryTitle else strings.gameOverTitle,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = if (won) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                        textAlign = TextAlign.Center
+                if (isFullGameFinale) {
+                    GameFinaleEndingOverlay(
+                        bitmapRegistry = bitmapRegistry,
+                        strings = strings,
+                        starsEarned = hud.starsEarned,
+                        score = hud.score,
+                        xpEarned = hud.xpEarned,
+                        crystalsEarned = hud.crystalsEarned,
+                        enemiesKilled = hud.enemiesKilled,
+                        accuracy = accuracy,
+                        onRetry = { arenaViewModel.restartSession(mode, stageNumber, ownerToken) },
+                        onExitToMap = onExitArena
                     )
-                    if (won) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            repeat(3) { idx ->
-                                Icon(
-                                    imageVector = if (idx < hud.starsEarned) Icons.Default.Star else Icons.Default.StarBorder,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                        }
-                    } else if (hud.statusBanner.isNotBlank()) {
-                        Text(
-                            hud.statusBanner,
-                            style = MaterialTheme.typography.bodySmall,
-                            textAlign = TextAlign.Center,
-                            maxLines = 2
-                        )
-                    }
-                    Text(
-                        text = "${strings.scoreLabel}: ${hud.score}   •   +${hud.xpEarned} ${strings.xpLabel}   •   +${hud.crystalsEarned} 💎",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = "Kills: ${hud.enemiesKilled}   •   Accuracy: $accuracy%",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    if (isAutoStoryTransition) {
-                        val videoAssetPath = activeSim.stageDef.transitionVideoAsset
-                        val hasVideo = remember(videoAssetPath) {
-                            !videoAssetPath.isNullOrBlank() && runCatching {
-                                bitmapRegistry.assetExists(videoAssetPath)
-                            }.getOrDefault(false)
-                        }
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth().testTag("arena_auto_transition_status")
-                        ) {
-                            Text(
-                                text = if (hasVideo) strings.autoVideoStatusLabel else strings.advancingStageLabel,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                } else {
+                    ArenaModalCard {
+                        if (won) {
+                            AssetSpriteImage(
+                                bitmapRegistry = bitmapRegistry,
+                                assetPath = "images/astronauts_happy.png",
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                maxDimension = 256,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(68.dp)
+                                    .clip(RoundedCornerShape(12.dp))
                             )
                         }
-                    } else {
-                        FilledTonalButton(
-                            onClick = { arenaViewModel.restartSession(mode, stageNumber, ownerToken) },
-                            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("arena_retry_button")
-                        ) {
-                            Text(strings.retryBtn)
+                        Text(
+                            text = if (won) strings.victoryTitle else strings.gameOverTitle,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = if (won) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center
+                        )
+                        if (won) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                repeat(3) { idx ->
+                                    Icon(
+                                        imageVector = if (idx < hud.starsEarned) Icons.Default.Star else Icons.Default.StarBorder,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                            }
+                        } else if (hud.statusBanner.isNotBlank()) {
+                            Text(
+                                hud.statusBanner,
+                                style = MaterialTheme.typography.bodySmall,
+                                textAlign = TextAlign.Center,
+                                maxLines = 2
+                            )
                         }
-                        OutlinedButton(
-                            onClick = onExitArena,
-                            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("arena_exit_button")
-                        ) {
-                            Text(strings.exitToMapBtn)
+                        Text(
+                            text = "${strings.scoreLabel}: ${hud.score}   •   +${hud.xpEarned} ${strings.xpLabel}   •   +${hud.crystalsEarned} 💎",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "Kills: ${hud.enemiesKilled}   •   Accuracy: $accuracy%",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        if (isAutoStoryTransition) {
+                            val videoAssetPath = activeSim.stageDef.transitionVideoAsset
+                            val hasVideo = remember(videoAssetPath) {
+                                !videoAssetPath.isNullOrBlank() && runCatching {
+                                    bitmapRegistry.assetExists(videoAssetPath)
+                                }.getOrDefault(false)
+                            }
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth().testTag("arena_auto_transition_status")
+                            ) {
+                                Text(
+                                    text = if (hasVideo) strings.autoVideoStatusLabel else strings.advancingStageLabel,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                                )
+                            }
+                        } else {
+                            FilledTonalButton(
+                                onClick = { arenaViewModel.restartSession(mode, stageNumber, ownerToken) },
+                                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("arena_retry_button")
+                            ) {
+                                Text(strings.retryBtn)
+                            }
+                            OutlinedButton(
+                                onClick = onExitArena,
+                                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("arena_exit_button")
+                            ) {
+                                Text(strings.exitToMapBtn)
+                            }
                         }
                     }
                 }
@@ -830,11 +896,13 @@ private fun ArenaModalCard(content: @Composable () -> Unit) {
             border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.75f)),
             shape = RoundedCornerShape(20.dp),
             modifier = Modifier
-                .fillMaxWidth(0.68f)
-                .widthIn(min = 320.dp, max = 500.dp)
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 520.dp)
         ) {
             Column(
-                modifier = Modifier.padding(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -843,3 +911,181 @@ private fun ArenaModalCard(content: @Composable () -> Unit) {
         }
     }
 }
+
+@Composable
+private fun GameFinaleEndingOverlay(
+    bitmapRegistry: NativeBitmapRegistry,
+    strings: GameStrings,
+    starsEarned: Int,
+    score: Long,
+    xpEarned: Int,
+    crystalsEarned: Int,
+    enemiesKilled: Int,
+    accuracy: Int,
+    onRetry: () -> Unit,
+    onExitToMap: () -> Unit
+) {
+    var narrowTab by remember { mutableIntStateOf(0) }
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xDD010101))
+            .safeDrawingPadding()
+            .padding(12.dp)
+            .testTag("game_finale_ending_overlay"),
+        contentAlignment = Alignment.Center
+    ) {
+        val stacked = maxWidth < 620.dp
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)),
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier
+                .fillMaxWidth(0.94f)
+                .widthIn(max = 840.dp)
+        ) {
+            val summaryColumn: @Composable (Modifier) -> Unit = { colMod ->
+                Column(
+                    modifier = colMod,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    AssetSpriteImage(
+                        bitmapRegistry = bitmapRegistry,
+                        assetPath = "images/astronauts_happy.png",
+                        contentDescription = strings.gameFinaleTitle,
+                        contentScale = ContentScale.Crop,
+                        maxDimension = 256,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(58.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                    Text(
+                        text = strings.gameFinaleTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = strings.gameFinaleSubtitle,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        repeat(3) { idx ->
+                            Icon(
+                                imageVector = if (idx < starsEarned) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "${strings.scoreLabel}: $score   •   +$xpEarned ${strings.xpLabel}   •   +$crystalsEarned 💎",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "Kills: $enemiesKilled   •   Accuracy: $accuracy%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilledTonalButton(
+                            onClick = onRetry,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp)
+                                .testTag("arena_retry_button")
+                        ) {
+                            Text(strings.retryBtn, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Button(
+                            onClick = onExitToMap,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp)
+                                .testTag("arena_exit_button")
+                        ) {
+                            Text(strings.exitToMapBtn, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
+
+            if (stacked) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilledTonalButton(
+                            onClick = { narrowTab = 0 },
+                            enabled = narrowTab != 0,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp)
+                        ) {
+                            Text(strings.victoryTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        FilledTonalButton(
+                            onClick = { narrowTab = 1 },
+                            enabled = narrowTab != 1,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp)
+                        ) {
+                            Text(strings.creditsSectionTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    if (narrowTab == 0) {
+                        summaryColumn(Modifier.fillMaxWidth())
+                    } else {
+                        CreditsAndCopyrightSection(
+                            strings = strings,
+                            compact = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    summaryColumn(Modifier.weight(1f))
+                    CreditsAndCopyrightSection(
+                        strings = strings,
+                        compact = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+

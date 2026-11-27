@@ -4,6 +4,9 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.astronautstories.boss3d.Boss3DCatalog
+import com.example.astronautstories.boss3d.Boss3DInput
+import com.example.astronautstories.boss3d.Boss3DSimulation
 import com.example.astronautstories.domain.model.GameCatalog
 import com.example.astronautstories.domain.model.GameMode
 import com.example.astronautstories.domain.model.HeroId
@@ -32,6 +35,9 @@ class GameArenaViewModel(
     val simulationState: StateFlow<GameSimulation?> = _simulationState.asStateFlow()
     val simulation: GameSimulation? get() = _simulationState.value
 
+    private val _boss3DSimulationState = MutableStateFlow<Boss3DSimulation?>(null)
+    val boss3DSimulationState: StateFlow<Boss3DSimulation?> = _boss3DSimulationState.asStateFlow()
+
     private val _hud = MutableStateFlow(HudSnapshot())
     val hud: StateFlow<HudSnapshot> = _hud.asStateFlow()
 
@@ -59,6 +65,11 @@ class GameArenaViewModel(
 
     private var touchInput = InputControlsState()
     private var hardwareInput = InputControlsState()
+    private var bossMoveX = 0f
+    private var bossMoveY = 0f
+    private var bossDashTrigger = false
+    private var bossAimYawDelta = 0f
+    private var bossAimPitchDelta = 0f
     private var viewportWorldWidth = 1280f
     private var startJob: Job? = null
     private var loopJob: Job? = null
@@ -84,6 +95,7 @@ class GameArenaViewModel(
         _isPaused.value = false
         _isReady.value = false
         _simulationState.value = null
+        _boss3DSimulationState.value = null
         _hud.value = HudSnapshot(
             mode = mode,
             stageNumber = clampedStage,
@@ -121,26 +133,18 @@ class GameArenaViewModel(
 
             if (!isActive || _sessionId.value != nextSessionId) return@launch
 
-            val stageDef = GameCatalog.getStage(clampedStage)
-            val sim = GameSimulation(
+            activateStageSession(
+                sessionId = nextSessionId,
                 mode = mode,
-                stageDef = stageDef,
+                clampedStage = clampedStage,
                 hero = hero,
                 weapon = weapon,
                 skillLevels = skillLevels,
                 graphicsQuality = graphicsQuality,
                 bonusMedkits = bonusMedkits,
                 bonusAmmo = bonusAmmo,
-                bonusShield = bonusShield,
-                onSfx = { key -> container.audioEngine.playSfx(key) }
+                bonusShield = bonusShield
             )
-            _simulationState.value = sim
-            _hud.value = sim.buildSnapshot()
-            _isReady.value = true
-
-            container.audioEngine.onResumeLifecycle()
-            container.audioEngine.playTheme(stageDef.musicKey, loop = true)
-            runGameLoop(nextSessionId)
         }
     }
 
@@ -167,29 +171,73 @@ class GameArenaViewModel(
         _isPaused.value = false
         resetInputs()
 
-        val stageDef = GameCatalog.getStage(clampedStage)
-        val freshSim = GameSimulation(
+        container.audioEngine.playSfx("click")
+        activateStageSession(
+            sessionId = nextSessionId,
             mode = mode,
-            stageDef = stageDef,
+            clampedStage = clampedStage,
             hero = currentSim.hero,
             weapon = currentSim.weapon,
             skillLevels = currentSim.skillLevels,
             graphicsQuality = currentSim.graphicsQuality,
             bonusMedkits = currentSim.bonusMedkits,
             bonusAmmo = currentSim.bonusAmmo,
-            bonusShield = currentSim.bonusShield,
+            bonusShield = currentSim.bonusShield
+        )
+    }
+
+    private fun activateStageSession(
+        sessionId: Long,
+        mode: GameMode,
+        clampedStage: Int,
+        hero: HeroId,
+        weapon: WeaponType,
+        skillLevels: Map<SkillType, Int>,
+        graphicsQuality: com.example.astronautstories.domain.model.GraphicsQuality,
+        bonusMedkits: Int,
+        bonusAmmo: Int,
+        bonusShield: Boolean
+    ) {
+        val stageDef = GameCatalog.getStage(clampedStage)
+        val freshSim = GameSimulation(
+            mode = mode,
+            stageDef = stageDef,
+            hero = hero,
+            weapon = weapon,
+            skillLevels = skillLevels,
+            graphicsQuality = graphicsQuality,
+            bonusMedkits = bonusMedkits,
+            bonusAmmo = bonusAmmo,
+            bonusShield = bonusShield,
             onSfx = { key -> container.audioEngine.playSfx(key) }
         )
 
         _simulationState.value = freshSim
-        _hud.value = freshSim.buildSnapshot()
+        if (mode == GameMode.STORY && Boss3DCatalog.isBoss3DStage(stageDef.stageNumber)) {
+            val freshBoss3D = Boss3DSimulation(
+                mode = mode,
+                stageDef = stageDef,
+                hero = hero,
+                weapon = weapon,
+                skillLevels = skillLevels,
+                graphicsQuality = graphicsQuality,
+                bonusMedkits = bonusMedkits,
+                bonusAmmo = bonusAmmo,
+                bonusShield = bonusShield,
+                onSfx = { key -> container.audioEngine.playSfx(key) }
+            )
+            _boss3DSimulationState.value = freshBoss3D
+            _hud.value = freshBoss3D.buildHudSnapshot()
+        } else {
+            _boss3DSimulationState.value = null
+            _hud.value = freshSim.buildSnapshot()
+        }
         _frameTick.value = _frameTick.value + 1L
         _isReady.value = true
 
-        container.audioEngine.playSfx("click")
         container.audioEngine.onResumeLifecycle()
         container.audioEngine.playTheme(stageDef.musicKey, loop = true)
-        runGameLoop(nextSessionId)
+        runGameLoop(sessionId)
     }
 
     private fun runGameLoop(activeSessionId: Long) {
@@ -205,35 +253,70 @@ class GameArenaViewModel(
                 lastNs = nowNs
 
                 val sim = _simulationState.value ?: continue
-                if (!_isPaused.value && sim.phase == ArenaPhase.PLAYING) {
-                    val combined = mergeInputs()
+                val boss3D = _boss3DSimulationState.value
+                val snap = if (boss3D != null && boss3D.stageDef.stageNumber == sim.stageDef.stageNumber) {
+                    if (!_isPaused.value && boss3D.phase == ArenaPhase.PLAYING) {
+                        val bInput = mergeBoss3DInput()
+                        try {
+                            boss3D.step(dt, bInput)
+                        } catch (e: Throwable) {
+                            Log.e("GameArenaVM", "Boss3D step error", e)
+                        }
+                        if (touchInput.specialTrigger) touchInput = touchInput.copy(specialTrigger = false)
+                        if (hardwareInput.specialTrigger) hardwareInput = hardwareInput.copy(specialTrigger = false)
+                        bossDashTrigger = false
+                        bossAimYawDelta = 0f
+                        bossAimPitchDelta = 0f
+                    }
                     try {
-                        sim.step(dt, combined, viewportWorldWidth)
+                        boss3D.buildHudSnapshot()
                     } catch (e: Throwable) {
-                        Log.e("GameArenaVM", "Simulation step error", e)
+                        Log.e("GameArenaVM", "Boss3D snapshot error", e)
+                        HudSnapshot(
+                            mode = boss3D.mode,
+                            stageNumber = boss3D.stageDef.stageNumber,
+                            phase = boss3D.phase,
+                            score = boss3D.score,
+                            isVictory = boss3D.phase == ArenaPhase.VICTORY,
+                            enemiesKilled = boss3D.enemiesKilled,
+                            bossKilled = boss3D.bossKilled,
+                            shotsFired = boss3D.shotsFired,
+                            shotsHit = boss3D.shotsHit,
+                            elapsedSeconds = boss3D.elapsedSeconds.toLong(),
+                            betrayalChosen = boss3D.betrayalChosen
+                        )
+                    }
+                } else {
+                    if (!_isPaused.value && sim.phase == ArenaPhase.PLAYING) {
+                        val combined = mergeInputs()
+                        try {
+                            sim.step(dt, combined, viewportWorldWidth)
+                        } catch (e: Throwable) {
+                            Log.e("GameArenaVM", "Simulation step error", e)
+                        }
+
+                        if (touchInput.specialTrigger) touchInput = touchInput.copy(specialTrigger = false)
+                        if (hardwareInput.specialTrigger) hardwareInput = hardwareInput.copy(specialTrigger = false)
                     }
 
-                    if (touchInput.specialTrigger) touchInput = touchInput.copy(specialTrigger = false)
-                    if (hardwareInput.specialTrigger) hardwareInput = hardwareInput.copy(specialTrigger = false)
-                }
-
-                val snap = try {
-                    sim.buildSnapshot()
-                } catch (e: Throwable) {
-                    Log.e("GameArenaVM", "Snapshot build error", e)
-                    HudSnapshot(
-                        mode = sim.mode,
-                        stageNumber = sim.stageDef.stageNumber,
-                        phase = sim.phase,
-                        score = sim.score,
-                        isVictory = sim.phase == ArenaPhase.VICTORY,
-                        enemiesKilled = sim.enemiesKilled,
-                        bossKilled = sim.bossKilled,
-                        shotsFired = sim.shotsFired,
-                        shotsHit = sim.shotsHit,
-                        elapsedSeconds = sim.elapsedSeconds.toLong(),
-                        betrayalChosen = sim.betrayalChosen
-                    )
+                    try {
+                        sim.buildSnapshot()
+                    } catch (e: Throwable) {
+                        Log.e("GameArenaVM", "Snapshot build error", e)
+                        HudSnapshot(
+                            mode = sim.mode,
+                            stageNumber = sim.stageDef.stageNumber,
+                            phase = sim.phase,
+                            score = sim.score,
+                            isVictory = sim.phase == ArenaPhase.VICTORY,
+                            enemiesKilled = sim.enemiesKilled,
+                            bossKilled = sim.bossKilled,
+                            shotsFired = sim.shotsFired,
+                            shotsHit = sim.shotsHit,
+                            elapsedSeconds = sim.elapsedSeconds.toLong(),
+                            betrayalChosen = sim.betrayalChosen
+                        )
+                    }
                 }
                 _hud.value = snap
                 _frameTick.value = _frameTick.value + 1L
@@ -295,6 +378,35 @@ class GameArenaViewModel(
         specialTrigger = touchInput.specialTrigger || hardwareInput.specialTrigger
     )
 
+    private fun mergeBoss3DInput(): Boss3DInput {
+        val hwX = (if (hardwareInput.right) 1f else 0f) - (if (hardwareInput.left) 1f else 0f)
+        val hwY = if (hardwareInput.crouch) -1f else 0f
+        return Boss3DInput(
+            moveX = (bossMoveX + hwX).coerceIn(-1f, 1f),
+            moveY = (bossMoveY + hwY).coerceIn(-1f, 1f),
+            jump = touchInput.jump || hardwareInput.jump,
+            shoot = touchInput.shoot || hardwareInput.shoot || _autoFire.value,
+            dashTrigger = bossDashTrigger,
+            specialTrigger = touchInput.specialTrigger || hardwareInput.specialTrigger,
+            aimYawDelta = bossAimYawDelta,
+            aimPitchDelta = bossAimPitchDelta
+        )
+    }
+
+    fun updateBoss3DMove(x: Float, y: Float) {
+        bossMoveX = x.coerceIn(-1f, 1f)
+        bossMoveY = y.coerceIn(-1f, 1f)
+    }
+
+    fun addBoss3DAimDelta(yawDelta: Float, pitchDelta: Float) {
+        bossAimYawDelta += yawDelta
+        bossAimPitchDelta += pitchDelta
+    }
+
+    fun triggerBoss3DDash() {
+        bossDashTrigger = true
+    }
+
     fun toggleAutoFire() {
         _autoFire.value = !_autoFire.value
         runCatching { container.audioEngine.playSfx("click") }
@@ -330,6 +442,11 @@ class GameArenaViewModel(
     fun resetInputs() {
         touchInput = InputControlsState()
         hardwareInput = InputControlsState()
+        bossMoveX = 0f
+        bossMoveY = 0f
+        bossDashTrigger = false
+        bossAimYawDelta = 0f
+        bossAimPitchDelta = 0f
     }
 
     fun triggerSpecial() {
@@ -339,18 +456,30 @@ class GameArenaViewModel(
     fun startMissionFromBriefing() {
         resetInputs()
         _isPaused.value = false
-        _simulationState.value?.let { sim ->
-            sim.startMission()
-            _hud.value = sim.buildSnapshot()
+        val boss3D = _boss3DSimulationState.value
+        if (boss3D != null) {
+            boss3D.startMission()
+            _hud.value = boss3D.buildHudSnapshot()
+        } else {
+            _simulationState.value?.let { sim ->
+                sim.startMission()
+                _hud.value = sim.buildSnapshot()
+            }
         }
         runCatching { container.audioEngine.playSfx("click") }
     }
 
     fun resolveStoryChoice(betrayal: Boolean) {
         resetInputs()
-        _simulationState.value?.let { sim ->
-            sim.resolveStoryChoice(betrayal)
-            _hud.value = sim.buildSnapshot()
+        val boss3D = _boss3DSimulationState.value
+        if (boss3D != null) {
+            boss3D.resolveStoryChoice(betrayal)
+            _hud.value = boss3D.buildHudSnapshot()
+        } else {
+            _simulationState.value?.let { sim ->
+                sim.resolveStoryChoice(betrayal)
+                _hud.value = sim.buildSnapshot()
+            }
         }
     }
 
@@ -368,6 +497,7 @@ class GameArenaViewModel(
     fun stopSession() {
         startJob?.cancel()
         loopJob?.cancel()
+        _boss3DSimulationState.value = null
         resetInputs()
     }
 

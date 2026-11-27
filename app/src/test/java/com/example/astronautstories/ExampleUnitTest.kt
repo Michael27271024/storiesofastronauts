@@ -403,4 +403,110 @@ class ExampleUnitTest {
             }
         }
     }
+
+    @Test
+    fun boss3DCatalog_matchesOnlyTenBossStagesAndScalesToStage50Finale() {
+        val bossStages = setOf(5, 10, 15, 20, 25, 30, 35, 40, 45, 50)
+        for (stage in 1..GameCatalog.TOTAL_STAGES) {
+            assertEquals(stage in bossStages, com.example.astronautstories.boss3d.Boss3DCatalog.isBoss3DStage(stage))
+        }
+
+        val stage5Spec = com.example.astronautstories.boss3d.Boss3DCatalog.getSpec(5)
+        val stage50Spec = com.example.astronautstories.boss3d.Boss3DCatalog.getSpec(50)
+        assertEquals(2, stage5Spec.phaseCount)
+        assertEquals(4, stage50Spec.phaseCount)
+        assertTrue(stage50Spec.isGrandFinale)
+        assertTrue(stage50Spec.baseHp > stage5Spec.baseHp * 4)
+        assertTrue(stage50Spec.arenaRadius > stage5Spec.arenaRadius)
+        assertTrue(stage50Spec.bossScale > stage5Spec.bossScale)
+    }
+
+    @Test
+    fun boss3DSimulation_stage50FourPhasesAndVictoryTransitionWorkCleanly() {
+        val stage50 = GameCatalog.getStage(50)
+        val sim50 = com.example.astronautstories.boss3d.Boss3DSimulation(
+            mode = GameMode.STORY,
+            stageDef = stage50,
+            hero = HeroId.KOUROSH,
+            weapon = WeaponType.PHOTON_SNIPER,
+            skillLevels = emptyMap(),
+            graphicsQuality = GraphicsQuality.MEDIUM,
+            onSfx = {}
+        )
+        assertEquals(ArenaPhase.BRIEFING, sim50.phase)
+        sim50.startMission()
+        assertEquals(ArenaPhase.PLAYING, sim50.phase)
+        assertEquals(com.example.astronautstories.boss3d.Boss3DCombatState.INTRO_ENTRANCE, sim50.combatState)
+
+        // Advance past intro entrance (1.35s)
+        repeat(45) {
+            sim50.step(0.035f, com.example.astronautstories.boss3d.Boss3DInput())
+        }
+        assertEquals(com.example.astronautstories.boss3d.Boss3DCombatState.ACTIVE_COMBAT, sim50.combatState)
+
+        // Drop boss HP through Phase 2 -> 3 -> 4 and verify phase progression
+        sim50.bossHp = (sim50.bossMaxHp * 0.20f).toInt()
+        sim50.step(0.016f, com.example.astronautstories.boss3d.Boss3DInput())
+        assertEquals(4, sim50.bossPhase)
+
+        // Defeat boss via special shockwave
+        sim50.bossHp = 1
+        sim50.step(0.016f, com.example.astronautstories.boss3d.Boss3DInput(specialTrigger = true))
+        val snap = sim50.buildHudSnapshot()
+        assertEquals(ArenaPhase.VICTORY, snap.phase)
+        assertTrue(snap.isVictory)
+        assertTrue(snap.bossKilled)
+        assertEquals(0, snap.bossHp)
+    }
+
+    @Test
+    fun boss3DSimulation_stage30PreservesBetrayalStoryChoiceBeforeVictory() {
+        val stage30 = GameCatalog.getStage(30)
+        assertTrue(stage30.hasBetrayalChoice)
+        val sim30 = com.example.astronautstories.boss3d.Boss3DSimulation(
+            mode = GameMode.STORY,
+            stageDef = stage30,
+            hero = HeroId.KOUROSH,
+            weapon = WeaponType.STANDARD_BLASTER,
+            skillLevels = emptyMap(),
+            graphicsQuality = GraphicsQuality.MEDIUM,
+            onSfx = {}
+        )
+        sim30.startMission()
+        repeat(45) {
+            sim30.step(0.035f, com.example.astronautstories.boss3d.Boss3DInput())
+        }
+        sim30.bossHp = 1
+        sim30.step(0.016f, com.example.astronautstories.boss3d.Boss3DInput(specialTrigger = true))
+        assertEquals(ArenaPhase.STORY_CHOICE, sim30.phase)
+
+        sim30.resolveStoryChoice(betrayal = true)
+        assertEquals(ArenaPhase.VICTORY, sim30.phase)
+        assertTrue(sim30.betrayalChosen)
+    }
+
+    @Test
+    fun boss3DSimulation_stage5InitialBufferAndStartMissionPublishImmediately() {
+        val stage5 = GameCatalog.getStage(5)
+        val sim5 = com.example.astronautstories.boss3d.Boss3DSimulation(
+            mode = GameMode.STORY,
+            stageDef = stage5,
+            hero = HeroId.KOUROSH,
+            weapon = WeaponType.STANDARD_BLASTER,
+            skillLevels = emptyMap(),
+            graphicsQuality = GraphicsQuality.MEDIUM,
+            onSfx = {}
+        )
+        val buffer = com.example.astronautstories.boss3d.Boss3DRenderBuffer()
+        sim5.copyLatestRenderBuffer(buffer)
+        assertEquals(5, buffer.stageNumber)
+        assertEquals(com.example.astronautstories.boss3d.Boss3DCombatState.BRIEFING, buffer.combatState)
+        assertEquals(1f, buffer.bossHpRatio, 0.001f)
+        assertTrue(buffer.arenaRadius > 0f)
+
+        sim5.startMission()
+        sim5.copyLatestRenderBuffer(buffer)
+        assertEquals(ArenaPhase.PLAYING, sim5.phase)
+        assertEquals(com.example.astronautstories.boss3d.Boss3DCombatState.INTRO_ENTRANCE, buffer.combatState)
+    }
 }
